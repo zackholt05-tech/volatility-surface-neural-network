@@ -204,7 +204,8 @@ def key_columns(summary: pd.DataFrame) -> pd.DataFrame:
     cols = [
         "fit/rmse_vp", "fit/within_spread", "interp/rmse_vp", "wing/rmse_vp",
         "interp/truth_rmse_vp", "dte_7_30/rmse_vp",
-        "arb_data/calendar_frac", "arb_data/butterfly_frac_quoted",
+        "arb_data/calendar_frac", "arb_data/calendar_frac_material", "arb_data/calendar_max_vp",
+        "arb_data/butterfly_frac_quoted",
         "arb_data/butterfly_frac_between", "arb_ext/calendar_frac", "arb_ext/butterfly_frac",
         "dod_rmse_vp", "fit_seconds", "n_failed", "days", "errors",
     ]  # fmt: skip

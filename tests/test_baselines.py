@@ -49,6 +49,7 @@ def test_ssvi_recovers_truth_and_is_arbitrage_free(ssvi_day):
     for widen in (0.0, 0.5):
         arb = metrics.arbitrage_metrics(model, bounds, ARB, widen, "a")
         assert arb["a/calendar_frac"] == 0.0 and arb["a/butterfly_frac"] == 0.0
+        assert arb["a/calendar_frac_material"] == 0.0 and arb["a/calendar_max_vp"] == 0.0
 
 
 def test_arbitrage_metrics_flag_vogt_butterfly():

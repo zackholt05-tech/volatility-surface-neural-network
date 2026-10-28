@@ -64,6 +64,7 @@ class ArbEvalConfig:
     )
     tol_g: float = 1e-5  # Durrleman g below -tol_g is a butterfly violation
     tol_cal: float = 1e-7  # total-variance decrease beyond this is a calendar violation
+    material_vol: float = 1e-4  # calendar violations above 0.01 vol points count as material
 
 
 def domain(bounds: pd.DataFrame, T: np.ndarray, widen: float = 0.0):
@@ -107,10 +108,17 @@ def arbitrage_metrics(model, bounds: pd.DataFrame, cfg: ArbEvalConfig, widen: fl
     inside = (kc[None, :] >= lo[:, None]) & (kc[None, :] <= hi[:, None])
     both = inside[:-1] & inside[1:]
     dW = np.diff(Wc, axis=0)[both]
+    # Size in implied-vol terms at the later maturity: d(sigma) ~ dw / (2 sqrt(w T)).
+    later = np.sqrt(np.maximum(Wc[1:], 1e-12) * T_grid[1:, None])[both]
+    dvol = np.maximum(-dW, 0.0) / (2.0 * later)
 
     return {
         f"{prefix}/calendar_frac": float(np.mean(dW < -cfg.tol_cal)) if dW.size else 0.0,
         f"{prefix}/calendar_max": float(max(0.0, -dW.min())) if dW.size else 0.0,
+        f"{prefix}/calendar_max_vp": 100.0 * float(dvol.max()) if dW.size else 0.0,
+        f"{prefix}/calendar_frac_material": float(np.mean(dvol > cfg.material_vol))
+        if dW.size
+        else 0.0,
         f"{prefix}/butterfly_frac": float(np.mean(bad)),
         f"{prefix}/butterfly_frac_quoted": float(np.mean(bad[is_quoted])),
         f"{prefix}/butterfly_frac_between": float(np.mean(bad[~is_quoted]))

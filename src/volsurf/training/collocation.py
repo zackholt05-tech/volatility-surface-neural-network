@@ -1,9 +1,10 @@
 """Collocation grids on which arbitrage penalties are enforced during training.
 
-The grid covers every quoted maturity plus log-spaced maturities in between, and at each maturity
-a uniform k-range that extends past the fitted strikes by ``widen`` times the quoted width on each
-side. Penalizing only at quote locations would leave the surface free to violate the conditions
-between and beyond the quotes.
+The grid covers every quoted maturity, the midpoints between consecutive quoted maturities (where
+a surface can otherwise dip between two checked slices) and log-spaced maturities over the whole
+range. At each maturity it spans a uniform k-range that extends past the fitted strikes by
+``widen`` times the quoted width on each side. Penalizing only at quote locations would leave the
+surface free to violate the conditions between and beyond the quotes.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ class CollocationConfig:
     n_k: int = 41  # points per maturity
     widen: float = 1.0  # extend the fitted k-range by this share of its width on each side
     T_extend: tuple[float, float] = (0.8, 1.25)  # multiply the shortest / longest quoted maturity
+    midpoints: bool = True  # add the geometric midpoint between consecutive quoted maturities
 
 
 @dataclass
@@ -46,6 +48,8 @@ def build_grid(data: FitData, cfg: CollocationConfig, dtype=torch.float64) -> Co
 
     t0, t1 = slice_T.min() * cfg.T_extend[0], slice_T.max() * cfg.T_extend[1]
     T_grid = np.union1d(np.geomspace(t0, t1, cfg.n_T), slice_T)
+    if cfg.midpoints and len(slice_T) > 1:
+        T_grid = np.union1d(T_grid, np.sqrt(slice_T[:-1] * slice_T[1:]))
     lo_T, hi_T = np.interp(T_grid, slice_T, lo), np.interp(T_grid, slice_T, hi)
     width = hi_T - lo_T
     lo_T, hi_T = lo_T - cfg.widen * width, hi_T + cfg.widen * width
