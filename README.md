@@ -28,11 +28,25 @@ Requires [uv](https://docs.astral.sh/uv/) and, for the report, [Tectonic](https:
 
 ## Data
 
-Real-data experiments use SPX end-of-day option chains from [OptionsDX](https://www.optionsdx.com/)
-(free account; data is downloaded manually, one year per order). Place the extracted monthly `.txt`
-files under `data/raw/optionsdx/`. Raw and processed data are not committed.
+Real-data experiments use SPX end-of-day option chains (2018–2023, 16:00 ET snapshots) from
+[OptionsDX](https://www.optionsdx.com/) (free account; data is downloaded manually). Place the
+downloaded `.7z` archives in `data/raw/optionsdx/`, then:
 
-Synthetic surfaces need no external data: `make synthetic`.
+```bash
+make data          # extract, estimate forwards, audit, clean -> data/processed/spx/
+make diagnostics   # rate/carry history, filter funnel, sample surfaces
+```
+
+The pipeline:
+
+- derives each expiry's forward and discount factor from put-call parity, with a per-date rate
+  curve estimated from longer maturities, so no external rate or dividend data is needed;
+- re-inverts Black-76 implied volatilities from bid, ask and mid of out-of-the-money options;
+- flags quotes that are legs of tradable vertical or butterfly arbitrage (model-free, at bid/ask);
+- writes `quotes`, `forwards` and per-day quality (`days`) tables as monthly Parquet partitions.
+
+Synthetic surfaces need no external data: `make synthetic`. Both sources share the column contract in
+`src/volsurf/data/schema.py`. Raw and processed data are not committed.
 
 ## Layout
 
@@ -53,7 +67,7 @@ Runs are logged to a local MLflow store (`./mlruns`). Browse with `make mlflow`.
 
 - [x] Project scaffold
 - [x] Pricing core (Black-76, Heston COS), static-arbitrage checks, synthetic chain generator
-- [ ] OptionsDX SPX ingestion: cleaning, put-call-parity forwards, IV re-inversion
+- [x] OptionsDX SPX ingestion: cleaning, put-call-parity forwards, IV re-inversion, quote audit
 - [ ] Baselines (SVI, SSVI, spline, unconstrained MLP) and evaluation harness
 - [ ] Soft-penalty arbitrage-aware network
 - [ ] Hard-constrained neural SSVI
