@@ -1,0 +1,40 @@
+# Phase 4: penalty-weight sweep for the arbitrage-aware network (validation years only).
+# A sparser day sample than the Phase 3 protocol (every 25 instead of 10 trading days) keeps the
+# sweep affordable; the chosen configuration is re-evaluated under the full protocol afterwards.
+experiment: phase4-lambda-sweep
+workers: 8
+
+sources:
+  spx: [2022]
+  synthetic:heston: [2021]
+
+eval:
+  sampling: {every: 25, block: 2}
+  screen: {max_arb_butterfly: 0.10, min_forward_valid: 0.8, drop_flagged_quotes: true}
+  holdout: {wing_frac: 0.1, interior_frac: 0.15, min_slice: 10}
+  arbitrage: {n_T: 40, n_k: 101, n_k_cal: 801, widen: 0.5, tol_g: 1.0e-5, tol_cal: 1.0e-7}
+  resid_floor: 0.001
+
+base: &base
+  hidden: [64, 64, 64]
+  activation: tanh
+  prior: ssvi
+  features: k_theta
+  time_feature: log
+  steps: 500
+  lbfgs_iters: 2000
+  warm_steps: 100
+  warm_lbfgs_iters: 1000
+  collocation: {n_T: 20, n_k: 41, widen: 1.0, T_extend: [0.8, 1.25]}
+
+models:
+  - {name: pnn_l0, model: mlp, warm_start: true, params: {<<: *base}}
+  - {name: pnn_l1, model: mlp, warm_start: true, params: {<<: *base, penalty: {calendar: 1, butterfly: 1, wing: 1}}}
+  - {name: pnn_l3, model: mlp, warm_start: true, params: {<<: *base, penalty: {calendar: 3, butterfly: 3, wing: 3}}}
+  - {name: pnn_l10, model: mlp, warm_start: true, params: {<<: *base, penalty: {calendar: 10, butterfly: 10, wing: 10}}}
+  - {name: pnn_l30, model: mlp, warm_start: true, params: {<<: *base, penalty: {calendar: 30, butterfly: 30, wing: 30}}}
+  - {name: pnn_l100, model: mlp, warm_start: true, params: {<<: *base, penalty: {calendar: 100, butterfly: 100, wing: 100}}}
+  - {name: pnn_l300, model: mlp, warm_start: true, params: {<<: *base, penalty: {calendar: 300, butterfly: 300, wing: 300}}}
+  # second seed for seed-noise estimates
+  - {name: pnn_l0_s1, model: mlp, warm_start: true, seed_offset: 1, params: {<<: *base}}
+  - {name: pnn_l10_s1, model: mlp, warm_start: true, seed_offset: 1, params: {<<: *base, penalty: {calendar: 10, butterfly: 10, wing: 10}}}
