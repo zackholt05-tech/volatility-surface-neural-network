@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Data (vendor terms prohibit redistribution; regenerate via `make data`)
+/data/
+
+# Experiment tracking
+mlruns/
+mlartifacts/
+
+# Report build outputs
+report/*.pdf
+report/*.aux
+report/*.log
+report/*.out
+report/*.bbl
+report/*.blg
+report/*.toc
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
