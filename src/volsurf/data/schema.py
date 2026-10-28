@@ -11,8 +11,8 @@ CORE_COLUMNS = [
     "T",  # year fraction to expiry, ACT/365
     "strike",
     "option_type",  # "C" if strike >= F else "P"
-    "spot",
-    "F",  # forward to expiry
+    "spot",  # vendor index print, not synchronized with the option snapshot: use F instead
+    "F",  # forward to expiry from put-call parity; the reference for moneyness and hedging
     "D",  # discount factor to expiry
     "k",  # log forward-moneyness log(K / F)
     "bid",
