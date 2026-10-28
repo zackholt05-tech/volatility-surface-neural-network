@@ -1,0 +1,34 @@
+# Phase 4 follow-up: the same three networks on the synthetic Heston panel without injected
+# mispricings. If the penalized network's larger truth error on synthetic:heston persists here, it
+# comes from flexibility (fitting quote noise); if it closes, the network was absorbing the injected
+# mispricings into the surface, which would lower mispricing recall in Phase 7.
+experiment: phase4-clean
+workers: 8
+
+sources:
+  synthetic:heston_clean: [2021]
+
+eval:
+  sampling: {every: 10, block: 2}
+  screen: {max_arb_butterfly: 0.10, min_forward_valid: 0.8, drop_flagged_quotes: true}
+  holdout: {wing_frac: 0.1, interior_frac: 0.15, min_slice: 10}
+  arbitrage: {n_T: 40, n_k: 101, n_k_cal: 801, widen: 0.5, tol_g: 1.0e-5, tol_cal: 1.0e-7, material_vol: 1.0e-4}
+  resid_floor: 0.001
+
+base: &base
+  hidden: [64, 64, 64]
+  activation: tanh
+  prior: ssvi
+  features: k_theta
+  time_feature: log
+  steps: 500
+  lbfgs_iters: 2000
+  warm_steps: 100
+  warm_lbfgs_iters: 1000
+  collocation: {n_T: 20, n_k: 41, widen: 1.0, T_extend: [0.8, 1.25], midpoints: true}
+
+models:
+  - {name: svi, model: svi}
+  - {name: mlp, model: mlp, params: {hidden: [64, 64, 64], activation: softplus, prior: none, steps: 500, lbfgs_iters: 500}}
+  - {name: pnn_l0, model: mlp, warm_start: true, params: {<<: *base}}
+  - {name: pnn, model: mlp, warm_start: true, params: {<<: *base, penalty: {calendar: 100, butterfly: 100, wing: 100}}}
