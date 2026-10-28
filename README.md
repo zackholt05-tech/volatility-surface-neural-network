@@ -48,3 +48,16 @@ tests/         unit tests
 ## Experiment tracking
 
 Runs are logged to a local MLflow store (`./mlruns`). Browse with `make mlflow`.
+
+## Roadmap
+
+- [x] Project scaffold
+- [x] Pricing core (Black-76, Heston COS), static-arbitrage checks, synthetic chain generator
+- [ ] OptionsDX SPX ingestion: cleaning, put-call-parity forwards, IV re-inversion
+- [ ] Baselines (SVI, SSVI, spline, unconstrained MLP) and evaluation harness
+- [ ] Soft-penalty arbitrage-aware network
+- [ ] Hard-constrained neural SSVI
+- [ ] Cross-day conditional surface model
+- [ ] Mispricing detection, residual reversion tests, delta-hedged backtest
+- [ ] Streamlit dashboard
+- [ ] Technical report

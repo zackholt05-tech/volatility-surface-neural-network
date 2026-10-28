@@ -1,0 +1,50 @@
+# Synthetic SPX-like option-chain panels with known ground truth.
+# `defaults` apply to every dataset; each entry under `datasets` overrides them.
+defaults:
+  n_days: 756               # ~3 years of business days -> train / val / test by year
+  start: "2020-01-02"
+  spot0: 4000.0
+  rate: 0.03
+  div_yield: 0.015
+  state:                    # regime path driving each day's variance level
+    vol_mean: 0.18
+    kappa: 5.0
+    vol_of_logvar: 2.0
+    rho: -0.7
+    v_floor: 0.002
+  heston: {kappa: 2.0, theta: 0.04, sigma: 0.6, rho: -0.7, v0: 0.03}   # smile shape; v0 = day state
+  ssvi_rho: -0.7            # eta * (1 + |rho|) <= 2 and gamma <= 1/2: arbitrage-free SSVI
+  ssvi_eta: 1.0
+  ssvi_gamma: 0.4
+  listing:
+    min_dte: 7
+    max_dte: 730
+    weekly_horizon: 56
+    z_range: [-4.0, 2.5]
+    target_strikes: 40
+  quotes:
+    half_spread: 0.0025
+    wing_slope: 0.35
+    noise: 0.3
+    tick_small: 0.05
+    tick_large: 0.10
+    tick_cutoff: 3.0
+  injection:
+    point_prob: 0.01
+    segment_prob: 0.05
+    segment_len: [3, 6]
+    size: [2.0, 5.0]
+    decay: 0.5
+    drop_below: 0.5
+
+datasets:
+  heston:
+    surface: heston
+    seed: 0
+  ssvi:
+    surface: ssvi
+    seed: 1
+  heston_clean:             # no injected mispricings, for pure fit-quality experiments
+    surface: heston
+    seed: 2
+    injection: {point_prob: 0.0, segment_prob: 0.0}
