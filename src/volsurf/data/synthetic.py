@@ -23,17 +23,18 @@ from dataclasses import dataclass, field, replace
 import numpy as np
 import pandas as pd
 
+from volsurf.config import from_dict
+from volsurf.data.schema import CORE_COLUMNS
 from volsurf.models.ssvi import power_law_phi, ssvi
 from volsurf.pricing import black76, heston
 from volsurf.pricing.heston import HestonParams
 
 STRIKE_INCREMENTS = (5.0, 10.0, 25.0, 50.0, 100.0)
 TRADING_DAYS = 252
-QUOTE_COLUMNS = [
-    "date", "expiry", "dte", "T", "strike", "option_type", "spot", "F", "D", "k",
-    "bid", "ask", "mid", "iv_bid", "iv_ask", "iv_mid", "iv_true", "w_true",
-    "half_spread_iv", "shift", "label", "injection",
-]  # fmt: skip
+# Ground truth appended to the core columns. ``shift`` is in units of ``half_spread_model``, the
+# generator's IV half-spread before tick rounding.
+TRUTH_COLUMNS = ["iv_true", "w_true", "half_spread_model", "shift", "label", "injection"]
+QUOTE_COLUMNS = CORE_COLUMNS + TRUTH_COLUMNS
 
 
 @dataclass
@@ -94,19 +95,7 @@ class SyntheticConfig:
 
     @classmethod
     def from_dict(cls, d: dict) -> SyntheticConfig:
-        nested = {
-            "heston": HestonParams,
-            "state": StateConfig,
-            "listing": ListingConfig,
-            "quotes": QuoteConfig,
-            "injection": InjectionConfig,
-        }
-
-        def tuples(x: dict) -> dict:
-            return {k: tuple(v) if isinstance(v, list) else v for k, v in x.items()}
-
-        kwargs = {k: nested[k](**tuples(v)) if k in nested else v for k, v in d.items()}
-        return cls(**kwargs)
+        return from_dict(cls, d)
 
 
 @dataclass(frozen=True)
@@ -261,8 +250,9 @@ def _quote(chain: pd.DataFrame, qc: QuoteConfig, rng) -> pd.DataFrame:
         iv_bid=black76.implied_vol(bid, F, K, T, is_call, D),
         iv_ask=black76.implied_vol(ask, F, K, T, is_call, D),
         iv_mid=black76.implied_vol(mid, F, K, T, is_call, D),
-        half_spread_iv=hs,
+        half_spread_model=hs,
     )
+    out["half_spread_iv"] = 0.5 * (out["iv_ask"] - out["iv_bid"])
     return out[(out["bid"] > 0.0) & out["iv_mid"].notna()]
 
 

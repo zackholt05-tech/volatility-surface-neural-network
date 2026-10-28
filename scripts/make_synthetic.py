@@ -6,19 +6,8 @@ import argparse
 import time
 from pathlib import Path
 
-import yaml
-
+from volsurf.config import deep_merge, load_yaml
 from volsurf.data.synthetic import SyntheticConfig, generate
-
-
-def deep_merge(base: dict, override: dict) -> dict:
-    out = dict(base)
-    for key, value in override.items():
-        if isinstance(value, dict) and isinstance(out.get(key), dict):
-            out[key] = deep_merge(out[key], value)
-        else:
-            out[key] = value
-    return out
 
 
 def main() -> None:
@@ -29,7 +18,7 @@ def main() -> None:
     parser.add_argument("--days", type=int, help="override n_days for quick runs")
     args = parser.parse_args()
 
-    spec = yaml.safe_load(Path(args.config).read_text())
+    spec = load_yaml(args.config)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 

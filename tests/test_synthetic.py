@@ -23,6 +23,7 @@ def test_schema_and_quote_sanity(panel):
     _, q, states = panel
     assert list(q.columns) == QUOTE_COLUMNS
     assert q[["bid", "ask", "mid", "iv_mid", "iv_true", "F", "D"]].notna().all().all()
+    assert (q["half_spread_iv"] > 0).all()
     assert (q["bid"] > 0).all() and (q["ask"] > q["bid"]).all()
     assert ((q["iv_bid"] <= q["iv_mid"]) & (q["iv_mid"] <= q["iv_ask"])).all()
     assert ((q["option_type"] == "C") == (q["strike"] >= q["F"])).all()
@@ -33,7 +34,7 @@ def test_schema_and_quote_sanity(panel):
 def test_unlabelled_quotes_track_truth(panel):
     _, q, _ = panel
     clean = q[q["shift"] == 0.0]
-    rel_err = (clean["iv_mid"] - clean["iv_true"]).abs() / clean["half_spread_iv"]
+    rel_err = (clean["iv_mid"] - clean["iv_true"]).abs() / clean["half_spread_model"]
     assert rel_err.median() < 0.5
 
 
