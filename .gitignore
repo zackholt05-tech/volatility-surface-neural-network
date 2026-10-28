@@ -12,9 +12,11 @@ __pycache__/
 *.zip
 *.parquet
 
-# Experiment tracking
+# Experiment tracking and generated results
 mlruns/
 mlartifacts/
+mlflow.db
+results/
 
 # Report build outputs
 report/*.pdf

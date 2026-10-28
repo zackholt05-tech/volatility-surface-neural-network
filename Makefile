@@ -1,4 +1,6 @@
-.PHONY: help setup test lint format synthetic data diagnostics mlflow report clean
+.PHONY: help setup test lint format synthetic data diagnostics baselines train mlflow report clean
+
+CONFIG ?= configs/baselines.yaml
 
 PY := uv run python
 
@@ -28,8 +30,14 @@ data:  ## Extract OptionsDX archives and build processed SPX quotes and forwards
 diagnostics:  ## Data-quality figures and tables for the processed SPX data
 	$(PY) scripts/spx_diagnostics.py
 
+baselines:  ## Evaluate the baseline surface models on the validation years
+	$(PY) scripts/evaluate_models.py --config configs/baselines.yaml
+
+train:  ## Evaluate one model from a config: make train MODEL=mlp [CONFIG=...]
+	$(PY) scripts/evaluate_models.py --config $(CONFIG) --models $(MODEL)
+
 mlflow:  ## Launch the local MLflow UI
-	uv run mlflow ui --backend-store-uri ./mlruns
+	uv run mlflow ui --backend-store-uri sqlite:///mlflow.db
 
 report:  ## Compile the LaTeX report
 	cd report && tectonic main.tex
