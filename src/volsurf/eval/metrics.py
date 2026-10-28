@@ -56,7 +56,7 @@ def bucket_metrics(day: Day, iv_model: np.ndarray, mask: np.ndarray) -> dict:
 
 @dataclass
 class ArbEvalConfig:
-    n_T: int = 40  # maturities on the evaluation grid (log-spaced over the quoted range)
+    n_T: int = 40  # log-spaced maturities added to the quoted ones on the evaluation grid
     n_k: int = 101  # points per maturity for the butterfly check
     n_k_cal: int = 801  # common k-grid for the calendar check
     widen: float = (
@@ -75,14 +75,26 @@ def domain(bounds: pd.DataFrame, T: np.ndarray, widen: float = 0.0):
 
 
 def arbitrage_metrics(model, bounds: pd.DataFrame, cfg: ArbEvalConfig, widen: float, prefix: str):
-    T_grid = np.geomspace(bounds["T"].min(), bounds["T"].max(), cfg.n_T)
+    """Static-arbitrage checks of a fitted surface over its (optionally widened) data domain.
+
+    The maturity grid is the union of ``n_T`` log-spaced points and every quoted maturity, so
+    crossings between adjacent short-dated slices are not skipped. For per-slice models the
+    surface between quoted maturities is the linear interpolation in total variance, which can
+    itself create butterfly violations; those are reported separately (``_between``) from
+    violations at the quoted maturities (``_quoted``).
+    """
+    quoted = bounds["T"].to_numpy()
+    T_grid = np.union1d(np.geomspace(quoted.min(), quoted.max(), cfg.n_T), quoted)
+    is_quoted = np.isin(T_grid, quoted)
+    n_T = T_grid.size
     lo, hi = domain(bounds, T_grid, widen)
 
     # Butterfly: a uniform k-grid per maturity spanning that maturity's domain.
     frac = np.linspace(0.0, 1.0, cfg.n_k)
     K = lo[:, None] + frac[None, :] * (hi - lo)[:, None]
     W = model.w(K, np.broadcast_to(T_grid[:, None], K.shape))
-    g = np.concatenate([durrleman_g(*fd_slice_derivatives(W[i], K[i])) for i in range(cfg.n_T)])
+    g = np.stack([durrleman_g(*fd_slice_derivatives(W[i], K[i])) for i in range(n_T)])
+    bad = g < -cfg.tol_g
     h = (hi - lo) / (cfg.n_k - 1)
     slope_lo = np.abs(-3 * W[:, 0] + 4 * W[:, 1] - W[:, 2]) / (2 * h)
     slope_hi = np.abs(3 * W[:, -1] - 4 * W[:, -2] + W[:, -3]) / (2 * h)
@@ -90,8 +102,7 @@ def arbitrage_metrics(model, bounds: pd.DataFrame, cfg: ArbEvalConfig, widen: fl
     # Calendar: a common k-grid, compared between consecutive maturities inside both domains.
     kc = np.linspace(lo.min(), hi.max(), cfg.n_k_cal)
     Wc = model.w(
-        np.broadcast_to(kc, (cfg.n_T, kc.size)),
-        np.broadcast_to(T_grid[:, None], (cfg.n_T, kc.size)),
+        np.broadcast_to(kc, (n_T, kc.size)), np.broadcast_to(T_grid[:, None], (n_T, kc.size))
     )
     inside = (kc[None, :] >= lo[:, None]) & (kc[None, :] <= hi[:, None])
     both = inside[:-1] & inside[1:]
@@ -100,7 +111,11 @@ def arbitrage_metrics(model, bounds: pd.DataFrame, cfg: ArbEvalConfig, widen: fl
     return {
         f"{prefix}/calendar_frac": float(np.mean(dW < -cfg.tol_cal)) if dW.size else 0.0,
         f"{prefix}/calendar_max": float(max(0.0, -dW.min())) if dW.size else 0.0,
-        f"{prefix}/butterfly_frac": float(np.mean(g < -cfg.tol_g)),
+        f"{prefix}/butterfly_frac": float(np.mean(bad)),
+        f"{prefix}/butterfly_frac_quoted": float(np.mean(bad[is_quoted])),
+        f"{prefix}/butterfly_frac_between": float(np.mean(bad[~is_quoted]))
+        if (~is_quoted).any()
+        else 0.0,
         f"{prefix}/butterfly_min_g": float(g.min()),
         f"{prefix}/positivity_frac": float(np.mean(W <= 0.0)),
         f"{prefix}/wing_max_slope": float(np.max(np.r_[slope_lo, slope_hi])),
