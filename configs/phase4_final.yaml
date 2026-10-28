@@ -1,0 +1,41 @@
+# Phase 4 final: the frozen arbitrage-penalized network against the baselines under the full
+# Phase 3 protocol (validation years only). pnn_l0 is the same architecture without penalties, so
+# the architecture gain and the penalty effect can be separated; pnn_s1 repeats the main model on
+# a second seed.
+experiment: phase4-final
+workers: 8
+
+sources:
+  spx: [2022]
+  synthetic:heston: [2021]
+  synthetic:ssvi: [2021]
+
+eval:
+  sampling: {every: 10, block: 2}
+  screen: {max_arb_butterfly: 0.10, min_forward_valid: 0.8, drop_flagged_quotes: true}
+  holdout: {wing_frac: 0.1, interior_frac: 0.15, min_slice: 10}
+  arbitrage: {n_T: 40, n_k: 101, n_k_cal: 801, widen: 0.5, tol_g: 1.0e-5, tol_cal: 1.0e-7, material_vol: 1.0e-4}
+  resid_floor: 0.001
+
+base: &base
+  hidden: [64, 64, 64]
+  activation: tanh
+  prior: ssvi
+  features: k_theta
+  time_feature: log
+  steps: 500
+  lbfgs_iters: 2000
+  warm_steps: 100
+  warm_lbfgs_iters: 1000
+  collocation: {n_T: 20, n_k: 41, widen: 1.0, T_extend: [0.8, 1.25], midpoints: true}
+
+penalty: &penalty {calendar: 100, butterfly: 100, wing: 100}
+
+models:
+  - {name: ssvi, model: ssvi}
+  - {name: svi, model: svi}
+  - {name: spline, model: spline, params: {smooth: 1.0}}
+  - {name: mlp, model: mlp, params: {hidden: [64, 64, 64], activation: softplus, prior: none, steps: 500, lbfgs_iters: 500}}
+  - {name: pnn_l0, model: mlp, warm_start: true, params: {<<: *base}}
+  - {name: pnn, model: mlp, warm_start: true, params: {<<: *base, penalty: *penalty}}
+  - {name: pnn_s1, model: mlp, warm_start: true, seed_offset: 1, params: {<<: *base, penalty: *penalty}}

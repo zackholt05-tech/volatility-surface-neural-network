@@ -108,9 +108,11 @@ def arbitrage_metrics(model, bounds: pd.DataFrame, cfg: ArbEvalConfig, widen: fl
     inside = (kc[None, :] >= lo[:, None]) & (kc[None, :] <= hi[:, None])
     both = inside[:-1] & inside[1:]
     dW = np.diff(Wc, axis=0)[both]
-    # Size in implied-vol terms at the later maturity: d(sigma) ~ dw / (2 sqrt(w T)).
-    later = np.sqrt(np.maximum(Wc[1:], 1e-12) * T_grid[1:, None])[both]
-    dvol = np.maximum(-dW, 0.0) / (2.0 * later)
+    # Size in implied-vol terms, d(sigma) ~ -dw / (2 sqrt(w T)), at the earlier maturity: its w is
+    # the larger one in a violation, which keeps the measure bounded (by sigma / 2) even where an
+    # extrapolated later slice collapses towards zero.
+    earlier = np.sqrt(np.maximum(Wc[:-1], 1e-12) * T_grid[:-1, None])[both]
+    dvol = np.maximum(-dW, 0.0) / (2.0 * earlier)
 
     return {
         f"{prefix}/calendar_frac": float(np.mean(dW < -cfg.tol_cal)) if dW.size else 0.0,
