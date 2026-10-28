@@ -33,6 +33,9 @@ diagnostics:  ## Data-quality figures and tables for the processed SPX data
 baselines:  ## Evaluate the baseline surface models on the validation years
 	$(PY) scripts/evaluate_models.py --config configs/baselines.yaml
 
+penalized:  ## Evaluate the frozen arbitrage-penalized network against the baselines
+	$(PY) scripts/evaluate_models.py --config configs/phase4_final.yaml
+
 train:  ## Evaluate one model from a config: make train MODEL=mlp [CONFIG=...]
 	$(PY) scripts/evaluate_models.py --config $(CONFIG) --models $(MODEL)
 

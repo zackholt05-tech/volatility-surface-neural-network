@@ -81,13 +81,30 @@ synthetic 2021) under one fixed protocol (`src/volsurf/eval/`):
 MLflow store (`mlflow.db`); browse runs with `make mlflow`. The 2023 SPX and 2022 synthetic test
 years are held back until models are frozen.
 
+## Arbitrage-penalized network
+
+The soft-constrained model (`src/volsurf/models/mlp.py`, `src/volsurf/training/`) multiplies a
+per-day SSVI fit by a bounded neural correction, $w = w_\text{SSVI}\,\exp(3\tanh(f/3))$, with
+inputs $k/\sqrt{\theta_\text{SSVI}(T)}$ and $\log T$. The loss is the spread-normalized IV fit plus
+hinge penalties on calendar, Durrleman butterfly and wing conditions, evaluated by autograd on a
+collocation grid that covers every quoted maturity, the midpoints between them, and strikes well
+beyond the quoted range. Fits run in float64 on CPU (Adam, then L-BFGS) and warm-start from the
+previous trading day.
+
+```bash
+uv run python scripts/evaluate_models.py --config configs/phase4_sweep.yaml     # penalty-weight sweep
+uv run python scripts/evaluate_models.py --config configs/phase4_ablation.yaml  # ablations
+uv run python scripts/plot_tradeoff.py --results results/phase4-ablation        # fit vs violations
+make penalized                                                                  # frozen model, full protocol
+```
+
 ## Roadmap
 
 - [x] Project scaffold
 - [x] Pricing core (Black-76, Heston COS), static-arbitrage checks, synthetic chain generator
 - [x] OptionsDX SPX ingestion: cleaning, put-call-parity forwards, IV re-inversion, quote audit
 - [x] Baselines (SVI, SSVI, spline, unconstrained MLP) and evaluation harness
-- [ ] Soft-penalty arbitrage-aware network
+- [x] Soft-penalty arbitrage-aware network
 - [ ] Hard-constrained neural SSVI
 - [ ] Cross-day conditional surface model
 - [ ] Mispricing detection, residual reversion tests, delta-hedged backtest
