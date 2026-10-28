@@ -59,16 +59,34 @@ report/        LaTeX technical report
 tests/         unit tests
 ```
 
-## Experiment tracking
+## Evaluation protocol
 
-Runs are logged to a local MLflow store (`./mlruns`). Browse with `make mlflow`.
+`make baselines` fits every model in `configs/baselines.yaml` on the validation years (SPX 2022;
+synthetic 2021) under one fixed protocol (`src/volsurf/eval/`):
+
+- **Days:** blocks of two consecutive trading days every ten days. Days with heavy model-free
+  arbitrage or poor forward coverage are screened out, and quotes flagged as arbitrage legs are
+  excluded from fits.
+- **Holdouts:** per slice, the outer 10% of strikes on each side (wing extrapolation) and a random
+  15% of interior strikes (interpolation). The split is seeded by the date, so every model sees
+  the same one.
+- **Quote metrics:** IV RMSE/MAE in vol points, RMS residual in bid-ask half-spreads, share of
+  model IVs inside the bid-ask, by maturity and moneyness bucket. Synthetic panels also report
+  the error against the true surface.
+- **Arbitrage metrics:** calendar and butterfly (Durrleman) violation rates and magnitudes on dense
+  grids over the quoted domain and a 50%-widened domain.
+- **Stability:** day-over-day change of fitted IVs on a fixed (k, T) probe grid.
+
+`make train MODEL=<name>` runs a single model. Results go to `results/<experiment>/` and to a local
+MLflow store (`mlflow.db`); browse runs with `make mlflow`. The 2023 SPX and 2022 synthetic test
+years are held back until models are frozen.
 
 ## Roadmap
 
 - [x] Project scaffold
 - [x] Pricing core (Black-76, Heston COS), static-arbitrage checks, synthetic chain generator
 - [x] OptionsDX SPX ingestion: cleaning, put-call-parity forwards, IV re-inversion, quote audit
-- [ ] Baselines (SVI, SSVI, spline, unconstrained MLP) and evaluation harness
+- [x] Baselines (SVI, SSVI, spline, unconstrained MLP) and evaluation harness
 - [ ] Soft-penalty arbitrage-aware network
 - [ ] Hard-constrained neural SSVI
 - [ ] Cross-day conditional surface model
