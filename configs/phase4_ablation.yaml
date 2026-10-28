@@ -1,0 +1,49 @@
+# Phase 4 ablations on the 22 sweep days (SPX 2022), all models paired by date and code revision.
+experiment: phase4-ablation
+workers: 8
+
+sources:
+  spx: [2022]
+
+eval:
+  sampling: {every: 25, block: 2}
+  screen: {max_arb_butterfly: 0.10, min_forward_valid: 0.8, drop_flagged_quotes: true}
+  holdout: {wing_frac: 0.1, interior_frac: 0.15, min_slice: 10}
+  arbitrage: {n_T: 40, n_k: 101, n_k_cal: 801, widen: 0.5, tol_g: 1.0e-5, tol_cal: 1.0e-7, material_vol: 1.0e-4}
+  resid_floor: 0.001
+
+base: &base
+  hidden: [64, 64, 64]
+  activation: tanh
+  prior: ssvi
+  features: k_theta
+  time_feature: log
+  steps: 500
+  lbfgs_iters: 2000
+  warm_steps: 100
+  warm_lbfgs_iters: 1000
+  collocation: {n_T: 20, n_k: 41, widen: 1.0, T_extend: [0.8, 1.25], midpoints: true}
+
+models:
+  # baselines on the same days
+  - {name: ssvi, model: ssvi}
+  - {name: svi, model: svi}
+  - {name: spline, model: spline, params: {smooth: 1.0}}
+  - {name: mlp, model: mlp, params: {hidden: [64, 64, 64], activation: softplus, prior: none, steps: 500, lbfgs_iters: 500}}
+  # penalty weight on the midpoint collocation grid
+  - {name: pnn_l30, model: mlp, warm_start: true, params: {<<: *base, penalty: {calendar: 30, butterfly: 30, wing: 30}}}
+  - {name: pnn_l100, model: mlp, warm_start: true, params: {<<: *base, penalty: {calendar: 100, butterfly: 100, wing: 100}}}
+  - {name: pnn_l300, model: mlp, warm_start: true, params: {<<: *base, penalty: {calendar: 300, butterfly: 300, wing: 300}}}
+  # collocation design: no maturity midpoints
+  - name: pnn_l100_nomid
+    model: mlp
+    warm_start: true
+    params: {<<: *base, penalty: {calendar: 100, butterfly: 100, wing: 100}, collocation: {n_T: 20, n_k: 41, widen: 1.0, T_extend: [0.8, 1.25], midpoints: false}}
+  # one penalty at a time
+  - {name: pnn_calendar_only, model: mlp, warm_start: true, params: {<<: *base, penalty: {calendar: 100}}}
+  - {name: pnn_butterfly_only, model: mlp, warm_start: true, params: {<<: *base, penalty: {butterfly: 100}}}
+  - {name: pnn_no_wing, model: mlp, warm_start: true, params: {<<: *base, penalty: {calendar: 100, butterfly: 100}}}
+  # architecture: no SSVI anywhere (prior or moneyness scaling)
+  - {name: pnn_no_ssvi, model: mlp, warm_start: true, params: {<<: *base, prior: none, features: k_sqrtT, penalty: {calendar: 100, butterfly: 100, wing: 100}}}
+  # every day fitted from scratch
+  - {name: pnn_l100_cold, model: mlp, warm_start: false, params: {<<: *base, penalty: {calendar: 100, butterfly: 100, wing: 100}}}
