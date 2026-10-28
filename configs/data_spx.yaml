@@ -1,0 +1,24 @@
+# OptionsDX SPX end-of-day ingestion.
+raw_dir: data/raw/optionsdx          # downloaded .7z archives
+extract_dir: data/raw/optionsdx_txt  # extracted monthly .txt cache
+years: null                          # e.g. [2018, 2019]; null = everything extracted
+workers: 6
+
+forwards:
+  min_T_rate: 0.0822        # 30 days: shortest maturity used to estimate the rate curve
+  n_pairs: 20               # call/put pairs nearest the forward per expiry
+  min_pairs: 5
+  rate_bounds: [-0.01, 0.10]
+  bandwidth: 0.5            # rate-curve kernel bandwidth in log T
+  outlier_mads: 4.0
+  fallback_rate: 0.02
+  max_dispersion: 0.002     # max relative MAD of per-strike forward estimates
+
+filters:
+  min_dte: 7
+  max_dte: 730
+  max_rel_spread: 1.0       # (ask - bid) / mid
+  k_range: [-1.5, 0.75]
+  z_range: [-6.0, 4.0]      # k / (atm_iv * sqrt(T))
+  iv_range: [0.01, 3.0]
+  min_slice_quotes: 8

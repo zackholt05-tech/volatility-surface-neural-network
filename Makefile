@@ -1,4 +1,4 @@
-.PHONY: help setup test lint format synthetic mlflow report clean
+.PHONY: help setup test lint format synthetic data diagnostics mlflow report clean
 
 PY := uv run python
 
@@ -21,6 +21,12 @@ format:  ## Format with ruff
 
 synthetic:  ## Generate synthetic surfaces with labelled mispricings
 	$(PY) scripts/make_synthetic.py --config configs/synthetic.yaml
+
+data:  ## Extract OptionsDX archives and build processed SPX quotes and forwards
+	$(PY) scripts/build_spx.py --config configs/data_spx.yaml
+
+diagnostics:  ## Data-quality figures and tables for the processed SPX data
+	$(PY) scripts/spx_diagnostics.py
 
 mlflow:  ## Launch the local MLflow UI
 	uv run mlflow ui --backend-store-uri ./mlruns
