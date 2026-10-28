@@ -93,44 +93,77 @@ def _init_worker() -> None:
     torch.set_num_threads(1)
 
 
-def evaluate_day(spec: dict, quotes: pd.DataFrame, cfg: EvalConfig) -> dict:
-    """Fit one model on one day; returns a metrics row with its stability probe."""
-    from volsurf.models.registry import build_model
+def _evaluate(model, day, cfg: EvalConfig, row: dict, init=None) -> dict:
+    start = time.perf_counter()
+    model.fit(day.fit_data()) if init is None else model.fit(day.fit_data(), init=init)
+    row["fit_seconds"] = time.perf_counter() - start
+    row["warm_start"] = init is not None
+    row["n_failed"] = model.n_failed
+    row["n_quotes"] = len(day.k)
+    row["n_slices"] = len(day.slice_T)
+    for name, value in getattr(model, "penalties", {}).items():
+        row[f"loss/{name}"] = value
 
-    date = quotes["date"].iloc[0]
-    row = {"model": spec["name"], "date": date}
-    try:
-        day = make_day(quotes, cfg.holdout, cfg.resid_floor)
-        model = build_model(spec, seed=date_seed(date))
-        start = time.perf_counter()
-        model.fit(day.fit_data())
-        row["fit_seconds"] = time.perf_counter() - start
-        row["n_failed"] = model.n_failed
-        row["n_quotes"] = len(day.k)
-        row["n_slices"] = len(day.slice_T)
-
-        iv = model.iv(day.k, day.T)
-        for name, mask in (("fit", day.fit), ("interp", day.interp), ("wing", day.wing)):
-            row |= metrics.quote_metrics(day, iv, mask, name)
-        row |= metrics.bucket_metrics(day, iv, day.fit)
-        bounds = day.slice_bounds()
-        arb = cfg.arbitrage
-        row |= metrics.arbitrage_metrics(model, bounds, arb, 0.0, "arb_data")
-        row |= metrics.arbitrage_metrics(model, bounds, arb, arb.widen, "arb_ext")
-        row["_probe"] = metrics.probe(model, bounds)
-    except Exception:  # one bad day must not stop the run
-        row["error"] = traceback.format_exc(limit=3)
+    iv = model.iv(day.k, day.T)
+    for name, mask in (("fit", day.fit), ("interp", day.interp), ("wing", day.wing)):
+        row |= metrics.quote_metrics(day, iv, mask, name)
+    row |= metrics.bucket_metrics(day, iv, day.fit)
+    bounds = day.slice_bounds()
+    arb = cfg.arbitrage
+    row |= metrics.arbitrage_metrics(model, bounds, arb, 0.0, "arb_data")
+    row |= metrics.arbitrage_metrics(model, bounds, arb, arb.widen, "arb_ext")
+    row["_probe"] = metrics.probe(model, bounds)
     return row
 
 
+def evaluate_block(spec: dict, block: list[pd.DataFrame], cfg: EvalConfig) -> list[dict]:
+    """Fit one model on a block of consecutive days, in order.
+
+    With ``warm_start: true`` in the spec, each day after the first is initialized from the
+    previous day's fitted model, as in daily production refits. Seeds are derived from the date
+    plus an optional ``seed_offset``, so configs are compared on paired seeds.
+    """
+    from volsurf.models.registry import build_model
+
+    rows, previous = [], None
+    for quotes in block:
+        date = quotes["date"].iloc[0]
+        row = {"model": spec["name"], "date": date}
+        try:
+            day = make_day(quotes, cfg.holdout, cfg.resid_floor)
+            model = build_model(spec, seed=date_seed(date) + spec.get("seed_offset", 0))
+            init = previous if spec.get("warm_start") else None
+            rows.append(_evaluate(model, day, cfg, row, init))
+            previous = model
+        except Exception:  # one bad day must not stop the run
+            row["error"] = traceback.format_exc(limit=3)
+            rows.append(row)
+            previous = None
+    return rows
+
+
+def blocks_from_pairs(dates, pairs: list[tuple]) -> list[list]:
+    """Group sampled dates into runs of consecutive days linked by ``pairs``."""
+    linked = {d1: d0 for d0, d1 in pairs}
+    blocks: list[list] = []
+    for d in sorted(dates):
+        if d in linked and blocks and blocks[-1][-1] == linked[d]:
+            blocks[-1].append(d)
+        else:
+            blocks.append([d])
+    return blocks
+
+
 def run(specs: list[dict], days: dict, pairs: list[tuple], cfg: EvalConfig, workers: int):
-    """Evaluate every (model, day); returns per-day metrics and day-over-day stability."""
+    """Evaluate every (model, block of days); returns per-day metrics and day-over-day change."""
     for var in THREAD_ENV:
         os.environ[var] = "1"
-    task_specs = [spec for spec in specs for _ in days]
-    task_quotes = [q for _ in specs for q in days.values()]
+    blocks = [[days[d] for d in b] for b in blocks_from_pairs(days.keys(), pairs)]
+    task_specs = [spec for spec in specs for _ in blocks]
+    task_blocks = [b for _ in specs for b in blocks]
     with ProcessPoolExecutor(max_workers=workers, initializer=_init_worker) as pool:
-        rows = list(pool.map(evaluate_day, task_specs, task_quotes, [cfg] * len(task_specs)))
+        results = pool.map(evaluate_block, task_specs, task_blocks, [cfg] * len(task_specs))
+        rows = [row for block_rows in results for row in block_rows]
 
     daily = pd.DataFrame(rows)
     probes = daily.pop("_probe") if "_probe" in daily else pd.Series(dtype=object)

@@ -12,6 +12,7 @@ from volsurf.models.svi import SVISurface
 
 def build_model(spec: dict, seed: int) -> SurfaceModel:
     kind, params = spec["model"], dict(spec.get("params") or {})
+    # spec-level keys such as name, warm_start and seed_offset are handled by the runner
     if kind == "ssvi":
         return SSVISurface(**params)
     if kind == "svi":
