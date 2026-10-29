@@ -47,6 +47,17 @@ def test_knots_from_rates_always_satisfy_the_sufficient_conditions():
             np.testing.assert_allclose(a, b.numpy(), rtol=1e-12)
 
 
+def test_knots_stay_finite_with_finite_gradients_for_extreme_rates():
+    knot_T = np.sort(np.random.default_rng(7).uniform(7 / 365, 2.5, 12))
+    for value in (-1000.0, -94.0, 0.0, 5.0):  # very negative rates once underflowed to u = 0
+        rates = torch.full((12, 3), value, dtype=torch.float64, requires_grad=True)
+        knots = knots_from_rates(torch.as_tensor(knot_T), rates, lib=torch)
+        sum(kn.sum() for kn in knots).backward()
+        assert all(torch.isfinite(kn).all() for kn in knots) and torch.isfinite(rates.grad).all()
+        theta, up, um = knots_from_rates(knot_T, rates.detach().numpy())
+        assert np.all(np.isfinite(theta)) and np.all(np.minimum(up, um) > 0)
+
+
 def test_rates_from_knots_inverts_the_generator():
     rng = np.random.default_rng(1)
     for _ in range(50):
@@ -143,8 +154,9 @@ def test_essvi_recovers_an_ssvi_surface(ssvi_days):
 
 @pytest.mark.parametrize("generator", ["free", "mlp"])
 def test_neural_essvi_fits_and_warm_starts_without_arbitrage(ssvi_days, generator):
-    cfg = NeuralESSVIConfig(components=2, generator=generator, pretrain_steps=100, steps=20,
-                            lbfgs_iters=60, warm_lbfgs_iters=30)  # fmt: skip
+    cfg = NeuralESSVIConfig(components=2, generator=generator, pretrain_steps=100,
+                            pretrain_lbfgs_iters=50, steps=20, lbfgs_iters=60,
+                            warm_lbfgs_iters=30)  # fmt: skip
     first = NeuralESSVISurface(cfg).fit(ssvi_days[0].fit_data())
     second = NeuralESSVISurface(cfg).fit(ssvi_days[1].fit_data(), init=first)
     for day, model in zip(ssvi_days, (first, second), strict=True):

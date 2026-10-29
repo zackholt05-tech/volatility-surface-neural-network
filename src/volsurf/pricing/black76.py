@@ -157,4 +157,3 @@ def total_vol_from_log_price(log_p, k, lo, hi, *, tol: float = 1e-13, max_iter: 
             if np.all(done):
                 break
     return v
-

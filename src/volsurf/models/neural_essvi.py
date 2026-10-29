@@ -47,7 +47,8 @@ class NeuralESSVIConfig:
     hidden: tuple[int, ...] = (32, 32)
     init_scales: tuple[float, ...] = (1.0, 1.8, 0.6)  # theta multipliers seeding the components
     init_weight: float = 0.8  # initial weight of the first component (matched to an eSSVI fit)
-    pretrain_steps: int = 500  # Adam steps fitting the network to the seed rates (cold start)
+    pretrain_steps: int = 500  # Adam steps fitting the network to the seed surfaces (cold start)
+    pretrain_lbfgs_iters: int = 500  # then L-BFGS iterations on the same objective
     steps: int = 200  # Adam steps on the data before L-BFGS
     lr: float = 1e-2
     lbfgs_iters: int = 500
@@ -73,6 +74,29 @@ def _log_otm_price_torch(k, w):
     log_a = torch.where(k >= 0, log_ndtr(d1), k + log_ndtr(-d2))
     log_b = torch.where(k >= 0, k + log_ndtr(d2), log_ndtr(-d1))
     return log_a + _log1mexp_torch(log_b - log_a)
+
+
+def _minimize_lbfgs(params, loss_fn, max_iter: int) -> None:
+    lbfgs = torch.optim.LBFGS(
+        params,
+        max_iter=max_iter,
+        history_size=50,
+        line_search_fn="strong_wolfe",
+        tolerance_grad=1e-10,
+        tolerance_change=1e-14,
+    )
+
+    def closure():
+        lbfgs.zero_grad()
+        loss = loss_fn()
+        if not torch.isfinite(loss):
+            # A trial step overflowed. Reporting +inf fails the Armijo test, so the strong-Wolfe
+            # search backtracks toward the last finite point (with NaN it would extrapolate).
+            return torch.tensor(float("inf"), dtype=torch.float64)
+        loss.backward()
+        return loss
+
+    lbfgs.step(closure)
 
 
 def mixture_total_variance(k, w_components, weights):
@@ -136,6 +160,38 @@ class NeuralESSVISurface(SurfaceModel):
             )
         return np.stack(out)
 
+    def _pretrain(self, data: FitData, knot_T, x_T, targets) -> None:
+        """Fit the network to the seed surfaces through each component's implied vols at the
+        quotes, normalized by the spread. Matching the rates themselves is a poor proxy: where a
+        seed constraint binds, its rate is a large negative number whose exact value hardly
+        changes the surface, yet it dominates a squared error in rate space."""
+        k, T, s = (torch.as_tensor(a) for a in (data.k, data.T, data.s))
+        sid = torch.as_tensor(data.slice_id)
+
+        def component_iv(rates):
+            th, up, um = knots_from_rates(knot_T, rates, lib=torch)
+            return torch.sqrt(torch.clamp(essvi_w(k, th[sid], up[sid], um[sid]), min=W_FLOOR) / T)
+
+        with torch.no_grad():
+            seed_iv = [component_iv(t) for t in targets]
+
+        def loss_fn():
+            rates = self._rates(x_T)
+            return sum(
+                torch.mean(((component_iv(rates[j]) - iv0) / s) ** 2)
+                for j, iv0 in enumerate(seed_iv)
+            )
+
+        opt = torch.optim.Adam(self.net.parameters(), lr=1e-2)
+        for _ in range(self.cfg.pretrain_steps):
+            opt.zero_grad()
+            loss = loss_fn()
+            if not torch.isfinite(loss):
+                break
+            loss.backward()
+            opt.step()
+        _minimize_lbfgs(list(self.net.parameters()), loss_fn, self.cfg.pretrain_lbfgs_iters)
+
     # ---- fitting ---------------------------------------------------------------------------
 
     def fit(self, data: FitData, init: NeuralESSVISurface | None = None) -> NeuralESSVISurface:
@@ -166,12 +222,7 @@ class NeuralESSVISurface(SurfaceModel):
         x_T = (torch.log(knot_T) - self._mu) / self._sd
 
         if cfg.generator == "mlp" and not warm:
-            opt = torch.optim.Adam(self.net.parameters(), lr=1e-2)
-            for _ in range(cfg.pretrain_steps):
-                opt.zero_grad()
-                loss = torch.mean((self._rates(x_T) - targets) ** 2)
-                loss.backward()
-                opt.step()
+            self._pretrain(data, knot_T, x_T, targets)
 
         params = [self.free_rates] if cfg.generator == "free" else list(self.net.parameters())
         if M > 1:
@@ -209,25 +260,12 @@ class NeuralESSVISurface(SurfaceModel):
             for _ in range(steps):
                 opt.zero_grad()
                 loss = objective()
+                if not torch.isfinite(loss):  # hand the last finite iterate to L-BFGS
+                    break
                 loss.backward()
                 opt.step()
 
-        lbfgs = torch.optim.LBFGS(
-            params,
-            max_iter=cfg.warm_lbfgs_iters if warm else cfg.lbfgs_iters,
-            history_size=50,
-            line_search_fn="strong_wolfe",
-            tolerance_grad=1e-10,
-            tolerance_change=1e-14,
-        )
-
-        def closure():
-            lbfgs.zero_grad()
-            loss = objective()
-            loss.backward()
-            return loss
-
-        lbfgs.step(closure)
+        _minimize_lbfgs(params, objective, cfg.warm_lbfgs_iters if warm else cfg.lbfgs_iters)
         with torch.no_grad():
             self.final_loss = float(objective())
             self.knots = [

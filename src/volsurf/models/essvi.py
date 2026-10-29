@@ -36,6 +36,7 @@ from volsurf.models.ssvi import SSVISurface, power_law_phi
 U_MAX = 4.0  # GJ / Lee bound on psi (1 + |rho|): total-variance wing slope below 2
 THETA_FLOOR = 1e-8  # strict increase of theta between knots
 T0_DAYS = 1.0  # reference maturity (days) at which both wings start from zero
+RATE_FLOOR = 1e-12  # keeps the wings strictly positive in floating point (theta recursion divides)
 
 
 def essvi_w(k, theta, u_plus, u_minus):
@@ -77,14 +78,15 @@ def knots_from_rates(knot_T, rates, lib=np):
     every arbitrage-free knot sequence (with strict increase) has a preimage.
     """
     if lib is np:
-        softplus, exp, cumsum, maximum = _softplus_np, np.exp, np.cumsum, np.maximum
+        softplus, expm1, cumsum, maximum = _softplus_np, np.expm1, np.cumsum, np.maximum
     else:
-        softplus, exp = torch.nn.functional.softplus, torch.exp
+        softplus, expm1 = torch.nn.functional.softplus, torch.expm1
         cumsum, maximum = (lambda x: torch.cumsum(x, 0)), torch.maximum
     dT, dlog = _steps(knot_T, lib)
-    fv, r_plus, r_minus = softplus(rates[:, 0]), softplus(rates[:, 1]), softplus(rates[:, 2])
-    u_plus = U_MAX * (1.0 - exp(-cumsum(r_plus * dlog)))
-    u_minus = U_MAX * (1.0 - exp(-cumsum(r_minus * dlog)))
+    fv = softplus(rates[:, 0])
+    r_plus, r_minus = softplus(rates[:, 1]) + RATE_FLOOR, softplus(rates[:, 2]) + RATE_FLOOR
+    u_plus = -U_MAX * expm1(-cumsum(r_plus * dlog))
+    u_minus = -U_MAX * expm1(-cumsum(r_minus * dlog))
     s = u_plus + u_minus
     floor = s * maximum(u_plus, u_minus) / 8.0
     inc = fv * dT + THETA_FLOOR
@@ -103,7 +105,7 @@ def rates_from_knots(knot_T, theta, u_plus, u_minus):
     def wing_rates(u):
         u = np.minimum(np.maximum.accumulate(np.maximum(u, 1e-12)), U_MAX * (1 - 1e-9))
         gap = np.log(U_MAX - np.r_[0.0, u])
-        return _softplus_inv(np.maximum(-np.diff(gap), 1e-9) / dlog)
+        return _softplus_inv(np.maximum(-np.diff(gap), 1e-9) / dlog - RATE_FLOOR)
 
     rates = np.empty((len(theta), 3))
     rates[:, 1], rates[:, 2] = wing_rates(u_plus), wing_rates(u_minus)
