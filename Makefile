@@ -1,4 +1,4 @@
-.PHONY: help setup test lint format synthetic data diagnostics baselines train mlflow report clean
+.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained train mlflow report clean
 
 CONFIG ?= configs/baselines.yaml
 
@@ -35,6 +35,11 @@ baselines:  ## Evaluate the baseline surface models on the validation years
 
 penalized:  ## Evaluate the frozen arbitrage-penalized network against the baselines
 	$(PY) scripts/evaluate_models.py --config configs/phase4_final.yaml
+
+constrained:  ## Evaluate the hard-constrained eSSVI models and compare them with the Phase 4 network
+	$(PY) scripts/evaluate_models.py --config configs/phase5_final.yaml
+	$(PY) scripts/compare_results.py --experiments phase5-final phase4-final phase4-clean \
+		--models ssvi svi spline mlp pnn essvi nmix1 mix4 nmix4 --out phase5-comparison
 
 train:  ## Evaluate one model from a config: make train MODEL=mlp [CONFIG=...]
 	$(PY) scripts/evaluate_models.py --config $(CONFIG) --models $(MODEL)
