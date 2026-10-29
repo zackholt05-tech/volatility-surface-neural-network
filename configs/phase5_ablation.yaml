@@ -1,0 +1,43 @@
+# Phase 5 ablations on the 22 sweep days (SPX 2022): the hard-constrained eSSVI family against the
+# frozen Phase 4 penalized network, paired by date and code revision.
+experiment: phase5-ablation
+workers: 8
+
+sources:
+  spx: [2022]
+
+eval:
+  sampling: {every: 25, block: 2}
+  screen: {max_arb_butterfly: 0.10, min_forward_valid: 0.8, drop_flagged_quotes: true}
+  holdout: {wing_frac: 0.1, interior_frac: 0.15, min_slice: 10}
+  arbitrage: {n_T: 40, n_k: 101, n_k_cal: 801, widen: 0.5, tol_g: 1.0e-5, tol_cal: 1.0e-7, material_vol: 1.0e-4}
+  resid_floor: 0.001
+
+pnn: &pnn
+  hidden: [64, 64, 64]
+  activation: tanh
+  prior: ssvi
+  features: k_theta
+  time_feature: log
+  steps: 500
+  lbfgs_iters: 2000
+  warm_steps: 100
+  warm_lbfgs_iters: 1000
+  collocation: {n_T: 20, n_k: 41, widen: 1.0, T_extend: [0.8, 1.25], midpoints: true}
+  penalty: {calendar: 100, butterfly: 100, wing: 100}
+
+models:
+  - {name: ssvi, model: ssvi}
+  - {name: svi, model: svi}
+  - {name: pnn, model: mlp, warm_start: true, params: *pnn}
+  # single eSSVI surface: free knots (global least squares) vs network-generated knots
+  - {name: essvi, model: essvi}
+  - {name: nmix1, model: nessvi, warm_start: true, params: {components: 1, generator: mlp, hidden: [64, 64, 64], lbfgs_iters: 1000}}
+  # price-space mixtures of eSSVI surfaces with free knots: number of components
+  - {name: mix2, model: nessvi, warm_start: true, params: {components: 2, generator: free}}
+  - {name: mix3, model: nessvi, warm_start: true, params: {components: 3, generator: free}}
+  - {name: mix4, model: nessvi, warm_start: true, params: {components: 4, generator: free, init_scales: [1.0, 1.8, 0.6, 1.3]}}
+  # every day from scratch
+  - {name: mix3_cold, model: nessvi, warm_start: false, params: {components: 3, generator: free}}
+  # three components with network-generated knots
+  - {name: nmix3, model: nessvi, warm_start: true, params: {components: 3, generator: mlp, hidden: [64, 64, 64], lbfgs_iters: 1000}}

@@ -8,7 +8,7 @@ done on the undiscounted out-of-the-money price, which keeps precision in the wi
 from __future__ import annotations
 
 import numpy as np
-from scipy.special import ndtr
+from scipy.special import log_ndtr, ndtr
 
 _SQRT_2PI = np.sqrt(2.0 * np.pi)
 
@@ -107,3 +107,54 @@ def implied_vol(
 
     valid &= sigma < sigma_max * (1.0 - 1e-9)
     return np.where(valid, sigma, np.nan)
+
+
+# Forward-normalized prices in log space (F = 1, K = e^k, undiscounted), parametrized by total
+# variance w = sigma^2 T. They stay finite far in the wings, where plain prices underflow and the
+# call/put formulas cancel catastrophically, which matters for price-space mixtures of surfaces.
+
+
+def _log1mexp(x):
+    """log(1 - exp(x)) for x <= 0, accurate on both sides of -log 2."""
+    with np.errstate(divide="ignore"):
+        return np.where(x > -np.log(2.0), np.log(-np.expm1(x)), np.log1p(-np.exp(x)))
+
+
+def log_otm_price(k, w):
+    """Log of the normalized out-of-the-money price: call for k >= 0, put for k < 0."""
+    k, w = np.broadcast_arrays(np.asarray(k, dtype=float), np.asarray(w, dtype=float))
+    v = np.sqrt(w)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        d1 = -k / v + 0.5 * v
+        d2 = d1 - v
+        # Both prices are A - B with log A >= log B.
+        log_a = np.where(k >= 0, log_ndtr(d1), k + log_ndtr(-d2))
+        log_b = np.where(k >= 0, k + log_ndtr(d2), log_ndtr(-d1))
+        return log_a + _log1mexp(np.minimum(log_b - log_a, 0.0))
+
+
+def total_vol_from_log_price(log_p, k, lo, hi, *, tol: float = 1e-13, max_iter: int = 100):
+    """Total implied vol v = sigma sqrt(T) solving ``log_otm_price(k, v^2) = log_p``.
+
+    The root must lie in the bracket [lo, hi] (e.g. the smallest and largest component vols of a
+    mixture, since the OTM price is increasing in v). Newton steps on the log price, with
+    d log P / dv = n(d1) / P, are safeguarded by bisection inside the bracket.
+    """
+    log_p, k, lo, hi = (np.array(a, dtype=float) for a in np.broadcast_arrays(log_p, k, lo, hi))
+    v = 0.5 * (lo + hi)
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        for _ in range(max_iter):
+            g = log_otm_price(k, v * v) - log_p
+            hi = np.where(g > 0.0, v, hi)
+            lo = np.where(g <= 0.0, v, lo)
+            d1 = -k / v + 0.5 * v
+            slope = np.exp(-0.5 * d1 * d1 - np.log(_SQRT_2PI) - log_otm_price(k, v * v))
+            newton = v - g / slope
+            bisect = ~np.isfinite(newton) | (newton <= lo) | (newton >= hi)
+            new = np.where(bisect, 0.5 * (lo + hi), newton)
+            done = (np.abs(new - v) <= tol * v) | (hi - lo <= tol * v)
+            v = new
+            if np.all(done):
+                break
+    return v
+
