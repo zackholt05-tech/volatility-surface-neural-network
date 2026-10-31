@@ -5,6 +5,8 @@ results/phase7-<split>/<source>/:
 
 - detection.csv: flag rates for every detector and margin, and on synthetic panels precision and
   recall against the injected labels;
+- absorption.csv (synthetic panels): the share of each injected mispricing a detector's surface
+  absorbs, by kind, and precision and recall by quarter;
 - reversion.csv: Fama-MacBeth reversion slopes of flagged against unflagged quotes;
 - backtest.csv: the strategy with next-day and same-day execution, its matched placebo and the
   test of their difference; on synthetic panels also the true labels traded at the signal's close,
@@ -46,6 +48,30 @@ def detection(table: pd.DataFrame, detectors, margins) -> pd.DataFrame:
             if synthetic:
                 row |= precision_recall(f, table)
             rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def absorption(table: pd.DataFrame, detectors, margin: float) -> pd.DataFrame:
+    """Synthetic panels: the median share of each injected shift a detector's surface absorbs,
+    (model - truth) / (market - truth) on labelled quotes, by kind; and precision and recall at
+    ``margin`` by quarter."""
+    labelled = (table["label"] != 0).to_numpy()
+    rows = []
+    for det in detectors:
+        share = ((table[det] - table["iv_true"]) / (table["iv_mid"] - table["iv_true"])).to_numpy()
+        row = {"detector": det, "quarter": "all"}
+        for kind in ("point", "segment"):
+            row[f"absorbed_{kind}"] = float(
+                np.median(share[labelled & (table["injection"] == kind).to_numpy()])
+            )
+        rows.append(row)
+        f = flag(residuals(table, det)["r"].to_numpy(), margin)
+        quarter = table["date"].dt.quarter.to_numpy()
+        for q in np.unique(quarter):
+            sel = quarter == q
+            pr = precision_recall(f[sel], table[sel])
+            rows.append({"detector": det, "quarter": int(q), "precision": pr["precision"],
+                         "recall": pr["recall"]})  # fmt: skip
     return pd.DataFrame(rows)
 
 
@@ -116,6 +142,10 @@ def main() -> None:
         det = detection(table, panel["detectors"], spec["detection"]["margins"])
         det.to_csv(out / "detection.csv", index=False)
         print(det.round(3).to_string(index=False))
+        if "label" in table:
+            ab = absorption(table, panel["detectors"], panel["backtest"]["margin"])
+            ab.to_csv(out / "absorption.csv", index=False)
+            print(ab.round(3).to_string(index=False))
         rev = reversion(table, panel["detectors"], panel["backtest"]["margin"],
                         spec["reversion"]["horizons"])  # fmt: skip
         rev.to_csv(out / "reversion.csv", index=False)

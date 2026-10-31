@@ -18,7 +18,7 @@ The best model on each task in the SPX validation year (2022). The 2023 test yea
 | fill missing maturities | `mix4` | 0.34 vp with 30% of inner maturities held out (conditional model 0.64; SVI 0.65 with calendar arbitrage) |
 | fit fast | conditional model, amortized `cond` | 0.06 s per day, against about 30 s for `mix4`, at 0.80 vp |
 | forecast the surface | none | no model beats the random walk significantly at 1, 5 or 20 days |
-| detect mispricings (synthetic, test year) | robust `mix4` | precision 0.95, recall 0.44 at 0.5 half-spreads outside the bid-ask |
+| detect mispricings (synthetic, test year) | robust `mix4` for precision, conditional model for recall | 0.95 / 0.44 against 0.64 / 0.63 (precision / recall); the conditional model finds 63% of mispriced segments, `mix4` 27% |
 | trade them (SPX 2023 test year) | none | flagged quotes revert faster (p ≤ 0.003), but next-day execution loses money net of the spread |
 
 On the synthetic Heston panel, whose regime does not change between years, the cross-day
@@ -279,10 +279,10 @@ for a Cauchy loss on spread-normalized residuals (scale one half-spread), and ev
 scored against it. A quote is flagged when the model price lies outside the bid-ask by more than a
 margin, in half-spreads; rich quotes are sold and cheap ones bought. Least-squares fits absorb part
 of each mispricing into the surface. On Heston 2021 they absorb a median 15% of an isolated
-mispriced strike and 60% of a mispriced segment of 3–6 neighbouring strikes, which one expiry's
-smile can bend to fit. The robust refit halves the first figure but not the second. The cross-day
-conditional model, whose surfaces move only through the latent, absorbs 4% of a segment and is
-scored alongside on the synthetic panels. On SPX its error (0.6–1.5 vp in 2022, Phase 6) is
+mispriced strike and 55% of a mispriced segment of 3–6 neighbouring strikes, which one expiry's
+smile can bend to fit. The robust refit halves the first figure (7%) but barely moves the second
+(51%). The cross-day conditional model, whose surfaces move only through the latent, absorbs 1%
+and 4% and is scored alongside on the synthetic panels (`absorption.csv`). On SPX its error (0.6–1.5 vp in 2022, Phase 6) is
 several times the half-spread (about 0.1 vp), so it is not used there.
 
 **Detection on the synthetic test year** (Heston 2022; labels are injected shifts above one
@@ -294,13 +294,15 @@ half-spread; "visible" recall counts labels whose true IV lies outside the quote
 | robust `mix4` | **0.95** | 0.44 | 0.52 | 0.58 | 0.27 |
 | conditional model | 0.64 | **0.63** | **0.74** | **0.63** | **0.63** |
 
-- The robust refit has higher recall than least squares at every margin on both synthetic years,
-  and higher precision up to margin 2.
+- Up to margin 2, the robust refit has higher precision and recall than least squares on both
+  synthetic years.
 - The conditional model finds segments that every per-day surface absorbs. On the validation year it
-  was also the most precise (0.96 against 0.95 for robust `mix4`). Its precision fell in 2022
-  because the second half of the year reaches variance levels below anything in its single training
-  year (79% of 2022Q4 days are below the 2020 minimum), where its error against the true surface
-  triples (0.07 to 0.21 vp). This is the same regime limit as on SPX in Phase 6.
+  was also the most precise (0.96 against 0.95 for robust `mix4`) and was chosen as the traded
+  synthetic detector. On the test year its precision is 0.99 in 2022Q1–Q2 but 0.52 and 0.35 in
+  Q3–Q4, while its recall stays at 0.62–0.64: the second half of 2022 reaches variance levels below
+  anything in its single training year (79% of 2022Q4 days are below the 2020 minimum), where its
+  error against the true surface triples (0.07 to 0.21 vp). This is the same regime limit as on SPX
+  in Phase 6.
 
 **Do flagged residuals revert?** For each day and horizon h, the residual change of every contract
 quoted on both days is regressed on its residual, separately for flagged and unflagged quotes, and
@@ -329,7 +331,7 @@ maturity–moneyness bucket, held for the same days.
 |---|---|---|---|---|---|---|---|
 | SPX 2023, next day | 2,595 | +$162k | $354k | **−$192k** | −0.66 | +$129k | +$100k (0.09) |
 | SPX 2023, same day (bound) | 2,883 | +$421k | $351k | +$70k | 0.35 | +$176k | +$423k (0.002) |
-| SPX 2022 (validation), next day | 3,978 | +$906k | $894k | +$12k | 0.01 | +$471k | +$641k (0.03) |
+| SPX 2022 (validation; best of 12 cells), next day | 3,978 | +$906k | $894k | +$12k | 0.01 | +$471k | +$641k (0.03) |
 | Heston 2022, conditional, next day | 3,091 | +$998k | $1,582k | −$584k | −5.4 | +$37k | +$940k (< 0.001) |
 | Heston 2022, conditional, same day | 3,329 | +$2,122k | $1,740k | +$383k | 3.1 | +$61k | +$2,068k (< 0.001) |
 | Heston 2022, true labels, same day | 2,786 | +$1,747k | $1,541k | +$206k | 1.9 | −$28k | +$1,752k (< 0.001) |
@@ -342,9 +344,12 @@ maturity–moneyness bucket, held for the same days.
   next-day strategy loses $192k, and its edge over the placebo is not significant (p = 0.09).
   End-of-day data also makes even the same-day bound optimistic, since it assumes a fill at the
   closing quotes that produced the signal.
-- Placebos earn a positive gross on SPX: holding sold options for a few days collects the
-  variance risk premium (58–59% of SPX trades are sales). The excess over the placebo is the
-  part the signal adds.
+- Placebos earn a positive gross on SPX, likely the variance risk premium collected by the sold
+  options (58–59% of SPX trades are sales). The excess over the placebo is the part the signal
+  adds.
+- Hit rates are 46% (next day) and 52% (same day) on SPX 2023, maximum drawdowns $409k and $268k,
+  and turnover 66 and 77 contracts a day. The validation row is the best of the 12 cells it was
+  selected from, so it is biased upward.
 
 ## Roadmap
 
