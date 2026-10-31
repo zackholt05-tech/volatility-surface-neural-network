@@ -15,7 +15,7 @@ The best model on each task in the SPX validation year (2022). The 2023 test yea
 | fit a day's chain | eSSVI price mixture `mix4` | 0.121 vp RMSE, 81% of model IVs inside the bid-ask, zero arbitrage |
 | extrapolate the wings | penalized network `pnn` | 0.86 vp (0.38% calendar violations left); best arbitrage-free model: `mix4`, 1.31 vp |
 | fill missing strikes | `mix4` | 0.155 vp with 90% of interior strikes held out |
-| fill missing maturities | conditional model, refined latent `cond_refined` | 0.64 vp with 30% of inner maturities held out (`mix4` 1.18; SVI 0.65 with calendar arbitrage) |
+| fill missing maturities | `mix4` | 0.34 vp with 30% of inner maturities held out (conditional model 0.64; SVI 0.65 with calendar arbitrage) |
 | fit fast | conditional model, amortized `cond` | 0.06 s per day, against about 30 s for `mix4`, at 0.80 vp |
 | forecast the surface | none | no model beats the random walk significantly at 1, 5 or 20 days |
 
@@ -226,14 +226,16 @@ SPX 2022, 52 days (violation rates on the widened domain; other rows as in the p
 | 50% | **0.125** | 0.61 | 0.22 | 0.18 | **0.17** | 0.29 |
 | 75% | **0.132** | 0.61 | 0.24 | 0.22 | **0.17** | 1.10 |
 | 90% | **0.155** | 0.61 | 0.35 | 0.42 | **0.17** | fails |
-| 30% of inner maturities | 1.18 | **0.64** | 0.65 | 0.88 | **0.16** | 0.19 |
+| 30% of inner maturities, plus 15% of strikes | **0.34** | 0.64 | 0.65 | 0.17 | **0.16** | 0.19 |
 
-- Per-day `mix4` degrades slowly as strikes go missing and stays best on SPX. Missing maturities
-  are where it breaks (the cause is not yet diagnosed; SVI, which also bridges each gap by
-  interpolation, does not break), and the conditional model beats it on 45 of 52 SPX days. SVI matches the conditional model there only by
-  violating calendar arbitrage on a fifth of the widened grid.
-- The conditional model's error barely moves with the share held out, on both panels. With 90% of
-  strikes missing, the error against the true Heston surface is 0.073 vp, against 0.40 for `mix4`.
+- Per-day `mix4` degrades slowly as strikes or whole maturities go missing and stays best on SPX:
+  with 30% of inner maturities missing it beats the conditional model on 50 of 52 days. Missing
+  maturities are interpolated between the observed ones; no model is given parameters at a
+  maturity without quotes. SVI, the closest runner-up there, violates calendar arbitrage on a
+  fifth of the widened grid.
+- The conditional model's error barely moves with the share held out, on both panels, and on
+  Heston it is best at every level. With 90% of strikes missing, its error against the true Heston
+  surface is 0.073 vp, against 0.40 for `mix4`; with maturities missing, 0.057 against 0.087.
   At 90%, SVI cannot fit any Heston day: too few strikes remain per slice.
 
 **Forecasting.** A VAR(1) on the latents of the training days forecasts $z$ h trading days ahead,
@@ -244,7 +246,7 @@ Heston days; RMSE in vp, Diebold–Mariano p-values with Newey–West variance):
 |---|---|---|---|---|---|---|
 | 1 | 1.73 | 1.73 | **1.35** | 1.19 | 0.64 | **0.60** |
 | 5 | 2.70 | 2.70 | **2.53** | 1.20 | 1.30 | **1.15** |
-| 20 | **3.90** | 4.25 | 4.27 | 1.22 | 2.82 | **1.96** |
+| 20 | 3.90 (n.s.) | 4.25 | 4.27 | 1.22 | 2.82 | **1.96** |
 
 - On SPX the VAR loses to today's `mix4` surface at one day (p < 0.001): the decoded surface's own
   2022 error (1.19 vp, last SPX column) is almost as large as a one-day move, so forecasts built on
