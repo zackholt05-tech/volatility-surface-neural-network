@@ -60,8 +60,11 @@ class Day:
     iv_true: np.ndarray | None = None  # synthetic ground truth when available
 
     def fit_data(self, mask: np.ndarray | None = None) -> FitData:
+        """The masked quotes, with only the maturities that keep quotes: a maturity held out whole
+        must be interpolated, not given parameters of its own that no data constrains."""
         m = self.fit if mask is None else mask
-        return FitData(self.k[m], self.T[m], self.iv[m], self.s[m], self.slice_id[m], self.slice_T)
+        kept, slice_id = np.unique(self.slice_id[m], return_inverse=True)
+        return FitData(self.k[m], self.T[m], self.iv[m], self.s[m], slice_id, self.slice_T[kept])
 
     def slice_bounds(self) -> pd.DataFrame:
         """Quoted log-moneyness range of each slice (all quotes, holdouts included)."""

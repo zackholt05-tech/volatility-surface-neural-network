@@ -140,3 +140,10 @@ def test_maturity_gaps_hold_out_whole_inner_slices_without_moving_other_holdouts
     held = np.setdiff1d(np.unique(gaps.slice_id), observed)
     n_inner = len(gaps.slice_T) - 2
     assert len(held) == round(0.3 * n_inner) and 0 not in held and n_inner + 1 not in held
+
+    # models are fitted on the observed maturities only; without gaps every maturity is observed
+    data = gaps.fit_data()
+    np.testing.assert_array_equal(data.slice_T, gaps.slice_T[observed])
+    np.testing.assert_array_equal(data.slice_T[data.slice_id], data.T)
+    np.testing.assert_array_equal(base.fit_data().slice_T, base.slice_T)
+    np.testing.assert_array_equal(base.fit_data().slice_id, base.slice_id[base.fit])
