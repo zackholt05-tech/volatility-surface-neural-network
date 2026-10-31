@@ -12,6 +12,7 @@ import traceback
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 
+import numpy as np
 import pandas as pd
 
 from volsurf.data import store
@@ -105,6 +106,7 @@ def _evaluate(model, day, cfg: EvalConfig, row: dict, init=None) -> dict:
         row[f"loss/{name}"] = value
 
     iv = model.iv(day.k, day.T)
+    row["nonfinite_quotes"] = float(np.mean(~np.isfinite(iv)))
     for name, mask in (("fit", day.fit), ("interp", day.interp), ("wing", day.wing)):
         row |= metrics.quote_metrics(day, iv, mask, name)
     row |= metrics.bucket_metrics(day, iv, day.fit)
@@ -207,6 +209,7 @@ def key_columns(summary: pd.DataFrame) -> pd.DataFrame:
         "arb_data/calendar_frac", "arb_data/calendar_frac_material", "arb_data/calendar_max_vp",
         "arb_data/butterfly_frac_quoted",
         "arb_data/butterfly_frac_between", "arb_ext/calendar_frac", "arb_ext/butterfly_frac",
-        "dod_rmse_vp", "fit_seconds", "n_failed", "days", "errors",
+        "arb_ext/nonfinite_frac", "nonfinite_quotes", "dod_rmse_vp", "fit_seconds", "n_failed",
+        "days", "errors",
     ]  # fmt: skip
     return summary[[c for c in cols if c in summary]].astype(float).round(4)

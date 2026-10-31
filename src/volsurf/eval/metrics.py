@@ -113,8 +113,11 @@ def arbitrage_metrics(model, bounds: pd.DataFrame, cfg: ArbEvalConfig, widen: fl
     # extrapolated later slice collapses towards zero.
     earlier = np.sqrt(np.maximum(Wc[:-1], 1e-12) * T_grid[:-1, None])[both]
     dvol = np.maximum(-dW, 0.0) / (2.0 * earlier)
+    # NaN compares false, so a non-finite surface would otherwise pass every check above.
+    nonfinite = np.mean(~np.isfinite(np.r_[W.ravel(), Wc.ravel()]))
 
     return {
+        f"{prefix}/nonfinite_frac": float(nonfinite),
         f"{prefix}/calendar_frac": float(np.mean(dW < -cfg.tol_cal)) if dW.size else 0.0,
         f"{prefix}/calendar_max": float(max(0.0, -dW.min())) if dW.size else 0.0,
         f"{prefix}/calendar_max_vp": 100.0 * float(dvol.max()) if dW.size else 0.0,
