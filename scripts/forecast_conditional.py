@@ -19,6 +19,8 @@ import numpy as np
 import pandas as pd
 import torch
 
+from volsurf.config import deep_merge, load_yaml
+from volsurf.data.synthetic import TRADING_DAYS, SyntheticConfig
 from volsurf.eval.dayset import FitData
 from volsurf.eval.forecast import diebold_mariano, fit_var1, var_forecast
 from volsurf.models.conditional import ConditionalNet, batch_iv
@@ -85,8 +87,13 @@ def mix4_errors(fit, target: TrainDay) -> tuple[float, float]:
     return _errors(model.iv(target.k, target.T), target)
 
 
-def state_check(source: str, z_train, train_days, z_eval, eval_days) -> dict:
-    """Synthetic positive control: how linearly the latent encodes the true log variance."""
+def state_check(source: str, z_train, train_days, z_eval, eval_days, horizons) -> pd.DataFrame:
+    """Synthetic positive control on the true state x = log v, which follows a known OU process.
+
+    Reports how linearly the latent encodes x out of sample, and how much an h-step forecast of x
+    itself beats the random walk, once with the generator's own dynamics (the predictability
+    there is to find) and once with an AR(1) estimated on the training days, as the latent VAR is
+    (what estimation from those days alone can recover)."""
     name = source.split(":")[-1]
     states = pd.read_parquet(Path("data/synthetic") / f"{name}_states.parquet")
     log_v = np.log(states.set_index("date")["v"])
@@ -96,7 +103,25 @@ def state_check(source: str, z_train, train_days, z_eval, eval_days) -> dict:
     coef, *_ = np.linalg.lstsq(design, y_train, rcond=None)
     pred = np.c_[np.ones(len(z_eval)), z_eval] @ coef
     r2 = 1.0 - np.sum((y_eval - pred) ** 2) / np.sum((y_eval - y_eval.mean()) ** 2)
-    return {"log_v_r2_eval": float(r2)}
+
+    spec = load_yaml("configs/synthetic.yaml")
+    state = SyntheticConfig.from_dict(deep_merge(spec["defaults"], spec["datasets"][name])).state
+    mean, phi = 2.0 * np.log(state.vol_mean), 1.0 - state.kappa / TRADING_DAYS
+    c, A = fit_var1(y_train[:, None], np.ones(len(y_train), dtype=bool))
+    rows = []
+    for h in horizons:
+        o = np.arange(len(y_eval) - h)
+        rw = (y_eval[o + h] - y_eval[o]) ** 2
+        forecasts = {
+            "true_dynamics": mean + (y_eval[o] - mean) * phi**h,
+            "estimated_ar1": var_forecast(c, A, y_eval[o][:, None], h)[:, 0],
+        }
+        for label, f in forecasts.items():
+            err = (y_eval[o + h] - f) ** 2
+            stat, p = diebold_mariano(rw - err, h)
+            rows.append({"h": h, "forecast": label, "mse_ratio_vs_rw": err.mean() / rw.mean(),
+                         "dm_stat": stat, "p_value": p, "log_v_r2_eval": r2})  # fmt: skip
+    return pd.DataFrame(rows)
 
 
 def main() -> None:
@@ -156,7 +181,9 @@ def main() -> None:
     print(summary.round(4).to_string())
     print(tests.round(4).to_string(index=False))
     if args.source.startswith("synthetic:"):
-        print(state_check(args.source, z_train, train_days, z_eval, eval_days))
+        state = state_check(args.source, z_train, train_days, z_eval, eval_days, args.horizons)
+        state.to_csv(out / "state_check.csv", index=False)
+        print(state.round(4).to_string(index=False))
 
 
 if __name__ == "__main__":

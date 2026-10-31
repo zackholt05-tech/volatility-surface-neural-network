@@ -1,4 +1,4 @@
-.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained train mlflow report clean
+.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast train mlflow report clean
 
 CONFIG ?= configs/baselines.yaml
 
@@ -40,6 +40,29 @@ constrained:  ## Evaluate the hard-constrained eSSVI models and compare them wit
 	$(PY) scripts/evaluate_models.py --config configs/phase5_final.yaml
 	$(PY) scripts/compare_results.py --experiments phase5-final phase4-final phase4-clean \
 		--models ssvi svi spline mlp pnn essvi nmix1 mix4 nmix4 --out phase5-comparison
+
+conditional:  ## Train the cross-day conditional models (SPX, synthetic Heston)
+	$(PY) scripts/train_conditional.py --config configs/phase6_train_spx.yaml
+	$(PY) scripts/train_conditional.py --config configs/phase6_train_heston.yaml
+
+cross-day:  ## Evaluate the trained conditional models and compare them with Phases 4 and 5
+	$(PY) scripts/evaluate_models.py --config configs/phase6_final.yaml
+	$(PY) scripts/compare_results.py --experiments phase6-final phase5-final phase4-final \
+		--models ssvi svi pnn mix4 nmix4 cond cond_refined --out phase6-comparison
+	$(PY) scripts/conditional_shift.py
+
+gaps:  ## Gap-filling: refit every model with more of each chain held out
+	for f in 0.5 0.75 0.9; do \
+		$(PY) scripts/evaluate_models.py --config configs/phase6_gaps.yaml \
+			--experiment phase6-gap-$$f --set eval.holdout.interior_frac=$$f; \
+	done
+	$(PY) scripts/evaluate_models.py --config configs/phase6_gaps.yaml \
+		--experiment phase6-gap-slices --set eval.holdout.slice_frac=0.3
+
+forecast:  ## Forecast surfaces from the latent dynamics against random walks
+	$(PY) scripts/forecast_conditional.py --checkpoint artifacts/conditional/spx_d8.pt
+	$(PY) scripts/forecast_conditional.py --checkpoint artifacts/conditional/heston_d8.pt \
+		--source synthetic:heston --train-years 2020 --eval-years 2021
 
 train:  ## Evaluate one model from a config: make train MODEL=mlp [CONFIG=...]
 	$(PY) scripts/evaluate_models.py --config $(CONFIG) --models $(MODEL)
