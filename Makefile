@@ -1,4 +1,4 @@
-.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast train mlflow report clean
+.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast mispricing-validation mispricing-test train mlflow report clean
 
 CONFIG ?= configs/baselines.yaml
 
@@ -63,6 +63,20 @@ forecast:  ## Forecast surfaces from the latent dynamics against random walks
 	$(PY) scripts/forecast_conditional.py --checkpoint artifacts/conditional/spx_d8.pt
 	$(PY) scripts/forecast_conditional.py --checkpoint artifacts/conditional/heston_d8.pt \
 		--source synthetic:heston --train-years 2020 --eval-years 2021
+
+HESTON_CKPT := artifacts/conditional/heston_d8.pt
+
+mispricing-validation:  ## Fit the detector on the validation years and report flags, reversion, backtest
+	$(PY) scripts/fit_panel.py --source synthetic:heston --years 2021 --checkpoint $(HESTON_CKPT) \
+		--seed-cache results/phase6-forecast/synthetic_heston/mix4_fits.pkl
+	$(PY) scripts/fit_panel.py --source spx --years 2022 \
+		--seed-cache results/phase6-forecast/spx/mix4_fits.pkl
+	$(PY) scripts/mispricing_report.py --split validation
+
+mispricing-test:  ## The same on the test years (SPX 2023, synthetic 2022), with configs/phase7.yaml frozen
+	$(PY) scripts/fit_panel.py --source synthetic:heston --years 2022 --checkpoint $(HESTON_CKPT)
+	$(PY) scripts/fit_panel.py --source spx --years 2023
+	$(PY) scripts/mispricing_report.py --split test
 
 train:  ## Evaluate one model from a config: make train MODEL=mlp [CONFIG=...]
 	$(PY) scripts/evaluate_models.py --config $(CONFIG) --models $(MODEL)
