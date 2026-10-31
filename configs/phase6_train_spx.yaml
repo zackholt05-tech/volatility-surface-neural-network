@@ -1,0 +1,15 @@
+# Phase 6: the cross-day conditional model on SPX. Trained on every screened day of the training
+# years; the last quarter of 2021 is held out for early stopping, so the 2022 validation days used
+# for reporting are never seen in training or model selection.
+name: spx_d8
+source: spx
+years: [2018, 2019, 2020, 2021]
+val_start: "2021-10-01"
+model: {latent_dim: 8, components: 4, enc_hidden: 128, dec_hidden: [256, 256]}
+context: {wing_max: 0.2, interior_max: 0.9, slice_prob: 0.3, slice_max: 0.5}
+batch_days: 16
+target_quotes: 1024
+context_cap: 2048
+lr: 1.0e-3
+epochs: 300
+patience: 30

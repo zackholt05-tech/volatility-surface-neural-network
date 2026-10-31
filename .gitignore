@@ -31,3 +31,6 @@ report/*.toc
 .DS_Store
 .vscode/
 .idea/
+
+# Trained model checkpoints (regenerate with scripts/train_conditional.py)
+artifacts/

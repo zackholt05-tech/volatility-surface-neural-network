@@ -21,6 +21,7 @@ class HoldoutConfig:
     wing_frac: float = 0.1  # outermost share of strikes held out on each side of every slice
     interior_frac: float = 0.15  # random share of the remaining strikes held out
     min_slice: int = 10  # slices with fewer quotes are used for fitting only
+    slice_frac: float = 0.0  # share of inner maturities held out whole (maturity gaps)
 
 
 @dataclass
@@ -90,6 +91,11 @@ def _holdout_masks(slice_id: np.ndarray, cfg: HoldoutConfig, rng: np.random.Gene
         inner = np.arange(a + n_wing, b - n_wing)
         n_int = int(round(cfg.interior_frac * len(inner)))
         interp[rng.choice(inner, size=n_int, replace=False)] = True
+    if cfg.slice_frac > 0:  # drawn last, so the other holdouts match runs without slice gaps
+        inner_slices = np.arange(1, len(starts) - 1)  # interpolation in T, not extrapolation
+        n_gap = int(round(cfg.slice_frac * len(inner_slices)))
+        gaps = rng.choice(inner_slices, size=n_gap, replace=False)
+        interp |= np.isin(slice_id, gaps) & ~wing
     return ~(wing | interp), interp, wing
 
 

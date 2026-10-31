@@ -1,0 +1,15 @@
+# Phase 6 on the synthetic Heston panel: its training year is 2020 (2021 is the validation year and
+# 2022 the test year), with the last quarter of 2020 held out for early stopping. The known daily
+# state of this panel is the positive control for the latent and its forecasts.
+name: heston_d8
+source: "synthetic:heston"
+years: [2020]
+val_start: "2020-10-01"
+model: {latent_dim: 8, components: 4, enc_hidden: 128, dec_hidden: [256, 256]}
+context: {wing_max: 0.2, interior_max: 0.9, slice_prob: 0.3, slice_max: 0.5}
+batch_days: 16
+target_quotes: 1024
+context_cap: 2048
+lr: 1.0e-3
+epochs: 300
+patience: 30

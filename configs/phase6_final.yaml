@@ -1,0 +1,24 @@
+# Phase 6 final: the cross-day conditional model under the full protocol (validation years only:
+# SPX 2022, synthetic Heston 2021; neither was seen in training or early stopping). `cond` decodes
+# the encoder's latent of the observed quotes (amortized); `cond_refined` refines that latent on
+# them. ssvi and svi are deterministic anchors: holdouts match phase5-final, so the Phase 4 and 5
+# models are compared through scripts/compare_results.py without refitting.
+experiment: phase6-final
+workers: 8
+
+sources:
+  spx: [2022]
+  synthetic:heston: [2021]
+
+eval:
+  sampling: {every: 10, block: 2}
+  screen: {max_arb_butterfly: 0.10, min_forward_valid: 0.8, drop_flagged_quotes: true}
+  holdout: {wing_frac: 0.1, interior_frac: 0.15, min_slice: 10}
+  arbitrage: {n_T: 40, n_k: 101, n_k_cal: 801, widen: 0.5, tol_g: 1.0e-5, tol_cal: 1.0e-7, material_vol: 1.0e-4}
+  resid_floor: 0.001
+
+models:
+  - {name: ssvi, model: ssvi}
+  - {name: svi, model: svi}
+  - {name: cond, model: conditional, params: {checkpoint: "artifacts/conditional/{panel}_d8.pt"}}
+  - {name: cond_refined, model: conditional, params: {checkpoint: "artifacts/conditional/{panel}_d8.pt", refine_iters: 100}}

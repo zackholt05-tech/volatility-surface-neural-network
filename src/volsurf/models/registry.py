@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from volsurf.config import from_dict
 from volsurf.models.base import SurfaceModel
+from volsurf.models.conditional import ConditionalSurface
 from volsurf.models.essvi import ESSVISurface
 from volsurf.models.mlp import MLPConfig, MLPSurface
 from volsurf.models.neural_essvi import NeuralESSVIConfig, NeuralESSVISurface
@@ -25,6 +26,8 @@ def build_model(spec: dict, seed: int) -> SurfaceModel:
         return SplineSurface(**params)
     if kind == "nessvi":
         return NeuralESSVISurface(from_dict(NeuralESSVIConfig, params), seed=seed)
+    if kind == "conditional":
+        return ConditionalSurface(**params)
     if kind == "mlp":
         return MLPSurface(from_dict(MLPConfig, params), seed=seed)
     raise ValueError(f"unknown model {kind!r}")

@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 import pandas as pd
+import yaml
 
 from volsurf.config import from_dict, load_yaml
 from volsurf.eval.runner import EvalConfig, flatten, key_columns, load_eval_days, run, summarize
@@ -37,6 +38,15 @@ def log_mlflow(experiment, source, years, spec, eval_dict, summary_row, daily_pa
         mlflow.log_artifact(str(daily_path))
 
 
+def for_panel(spec, panel: str):
+    """Fill ``{panel}`` in string parameters (e.g. a checkpoint trained on that panel)."""
+    if isinstance(spec, dict):
+        return {k: for_panel(v, panel) for k, v in spec.items()}
+    if isinstance(spec, list):
+        return [for_panel(v, panel) for v in spec]
+    return spec.replace("{panel}", panel) if isinstance(spec, str) else spec
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="configs/baselines.yaml")
@@ -45,9 +55,22 @@ def main() -> None:
     parser.add_argument("--workers", type=int)
     parser.add_argument("--max-days", type=int, help="cap sampled days (smoke runs)")
     parser.add_argument("--no-mlflow", action="store_true")
+    parser.add_argument("--experiment", help="override the experiment name (results directory)")
+    parser.add_argument(
+        "--set", nargs="*", default=[], metavar="KEY=VALUE", help="override config entries"
+    )
     args = parser.parse_args()
 
     spec = load_yaml(args.config)
+    for item in args.set:
+        key, value = item.split("=", 1)
+        *parents, leaf = key.split(".")
+        node = spec
+        for part in parents:
+            node = node.setdefault(part, {})
+        node[leaf] = yaml.safe_load(value)
+    if args.experiment:
+        spec["experiment"] = args.experiment
     eval_dict = spec.get("eval", {})
     cfg = from_dict(EvalConfig, eval_dict)
     if args.max_days:
@@ -60,7 +83,10 @@ def main() -> None:
             continue
         start = time.perf_counter()
         days, pairs, info = load_eval_days(source, years, cfg)
-        daily, stability = run(models, days, pairs, cfg, args.workers or spec.get("workers", 4))
+        panel_models = [for_panel(m, source.split(":")[-1]) for m in models]
+        daily, stability = run(
+            panel_models, days, pairs, cfg, args.workers or spec.get("workers", 4)
+        )
         summary = summarize(daily, stability)
 
         out = out_root / source.replace(":", "_")
@@ -79,7 +105,7 @@ def main() -> None:
             print("errors:", daily.loc[daily["error"].notna(), ["model", "date"]].to_string())
 
         if not args.no_mlflow:
-            for spec_m in models:
+            for spec_m in panel_models:
                 if spec_m["name"] not in summary.index:
                     continue
                 path = out / f"daily_{spec_m['name']}.csv"
