@@ -4,7 +4,7 @@
 #   make mispricing-test         # the test years, once, with this file unchanged
 robust:  # Cauchy IRLS refits of each day's mix4 surface (src/volsurf/eval/mispricing.py)
   passes: 2
-  scale: 1.0          # half-spreads; c = 2 absorbed twice as much of point mispricings on Heston 2021
+  scale: 1.0          # half-spreads; c = 2 absorbed 1.5 times as much of point mispricings on Heston 2021
   lbfgs_iters: 100    # per refit; 300 gave the same truth error
   refine_iters: 100   # latent refinement of the conditional detector (synthetic panels)
 
