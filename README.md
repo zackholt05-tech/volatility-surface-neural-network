@@ -157,7 +157,7 @@ rows come from `phase4-final` (the deterministic anchors reproduce it exactly on
 - [x] OptionsDX SPX ingestion: cleaning, put-call-parity forwards, IV re-inversion, quote audit
 - [x] Baselines (SVI, SSVI, spline, unconstrained MLP) and evaluation harness
 - [x] Soft-penalty arbitrage-aware network
-- [x] Hard-constrained neural SSVI
+- [x] Hard-constrained eSSVI surfaces (arbitrage-free by construction)
 - [ ] Cross-day conditional surface model
 - [ ] Mispricing detection, residual reversion tests, delta-hedged backtest
 - [ ] Streamlit dashboard
