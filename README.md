@@ -9,24 +9,29 @@ maturities, which are then validated statistically and in a cost-aware, delta-he
 ## Results at a glance
 
 The best model on each task, in the SPX validation year (2022) unless a row names a test year. The
-test years (SPX 2023, synthetic Heston 2022) were run once, in Phase 7, with every setting frozen
-beforehand.
+test years (SPX 2023, synthetic Heston 2022) were first run in Phase 7, with every setting frozen
+beforehand. The later refinements were chosen on the validation years in the same way and frozen
+before being run on the test years once more, and on a fresh synthetic panel. They are quarterly
+refits of the SPX conditional model, a synthetic model trained on more years and a pooled
+robust detector.
 
 | task | best model | result |
 |---|---|---|
 | fit a day's chain | eSSVI price mixture `mix4` | 0.121 vp RMSE, 81% of model IVs inside the bid-ask, zero arbitrage |
-| extrapolate the wings | penalized network `pnn` | 0.86 vp (0.38% calendar violations left); best arbitrage-free model: `mix4`, 1.31 vp |
+| extrapolate the wings | penalized network `pnn` | 0.86 vp (0.38% calendar violations left); best arbitrage-free: conditional model refitted quarterly, 1.25 vp (`mix4` 1.31; on 2023, 0.85 and 0.82) |
 | fill missing strikes | `mix4` | 0.155 vp with 90% of interior strikes held out |
 | fill missing maturities | `mix4` | 0.34 vp with 30% of inner maturities held out (conditional model 0.64; SVI 0.65 with calendar arbitrage) |
-| fit fast | conditional model, amortized `cond` | 0.06 s per day, against about 30 s for `mix4`, at 0.80 vp |
+| fit fast | conditional model, amortized and refitted quarterly | 0.05 s per day, against about 30 s for `mix4`, at 0.63 vp (SPX 2023 test year: 0.40 vp, `mix4` 0.071) |
 | forecast the surface | none | no model beats the random walk significantly at 1, 5 or 20 days |
-| detect mispricings (synthetic, test year) | robust `mix4` for precision, conditional model for recall | 0.95 / 0.44 against 0.64 / 0.63 (precision / recall); the conditional model finds 63% of mispriced segments, `mix4` 27% |
+| detect mispricings (synthetic test panels) | conditional model trained on nine years | 0.997 / 0.63 precision / recall on Heston 2022 (robust `mix4` 0.95 / 0.44, pooled robust `mix4` 0.96 / 0.52); finds 62% of mispriced segments against 27% and 40% |
 | trade them (SPX 2023 test year) | none | flagged quotes revert faster (p ≤ 0.003), but next-day execution loses money net of the spread |
 
-On the synthetic Heston panel, whose regime does not change between years, the cross-day
-conditional model wins every held-out task: it is closest to the true surface on held-out strikes
-(0.062 vp against 0.094 for `mix4`) and has the lowest error on held-out wings and on chains with
-missing strikes or maturities. Per-day fits stay closer to the noisy quotes they are fitted to.
+On the synthetic Heston panels, whose regime does not change between years, the cross-day
+conditional model wins every held-out task. Trained on nine generator years, it is closest to the
+true surface on held-out strikes (0.045 vp on both test panels against 0.098–0.099 for `mix4`)
+and on held-out wings. Trained on one year, it already had the lowest error on chains with missing
+strikes or maturities.
+Per-day fits stay closer to the noisy quotes they are fitted to.
 
 ## Components
 
@@ -194,6 +199,10 @@ make conditional  # train both models (the SPX one runs for over an hour) -> art
 make cross-day    # full protocol, merged with Phases 4 and 5, plus the regime diagnostic
 make gaps         # refit every model with more of each chain held out
 make forecast     # latent VAR(1) forecasts against random walks
+make walk-forward       # quarterly SPX refits scored on 2022 (about an hour of training)
+make walk-forward-test  # the same on 2023 with the chosen epoch count
+make heston-multi       # the synthetic model trained on nine years, scored on 2021
+make heston-multi-test  # the same on Heston 2022 and the fresh panel
 ```
 
 SPX 2022, 52 days (violation rates on the widened domain; other rows as in the previous table):
@@ -264,6 +273,57 @@ Heston days; RMSE in vp, Diebold–Mariano p-values with Newey–West variance):
   twice the variance of 2021. The representation carries the forecastable signal; estimating the
   dynamics from one year cannot recover it. No nonlinear dynamics model (such as a GRU) was
   tried, since the linear one did not beat the random walk.
+
+**Walk-forward refits** (`scripts/walk_forward.py`, `configs/walkforward_spx.yaml`). The SPX model
+above stops learning in September 2021. Before each quarter, a copy of it is now fine-tuned on
+every screened day up to the quarter's start, from 2018 on (979 days for 2022Q1, 1,416 for
+2023Q4). Fine-tuning runs at a constant learning rate of 3·10⁻⁴ with no early stopping, and the
+quarter is then fitted with the refreshed model. Every refit starts from the base model, not from
+the previous quarter's, and takes about a quarter of an hour. The epoch count (10, 20 or 40) was
+chosen on 2022 by the lowest mean amortized fit error (0.65 / 0.63 / 0.63 vp; 40 won) and frozen
+before 2023 was run. Fit RMSE (vp) on the harness days:
+
+| model | 2022Q1 | Q2 | Q3 | Q4 | 2022 | 2023Q1 | Q2 | Q3 | Q4 | 2023 (test) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `cond`, frozen | 0.49 | 0.83 | 0.75 | 1.21 | 0.80 | 0.84 | 0.46 | 0.55 | 0.59 | 0.61 |
+| `cond`, walk-forward | 0.45 | 0.77 | 0.52 | 0.83 | 0.63 | 0.53 | 0.34 | 0.38 | 0.33 | 0.40 |
+| walk-forward, refined | 0.36 | 0.52 | 0.45 | 0.65 | 0.49 | 0.48 | 0.30 | 0.30 | 0.27 | 0.34 |
+| `mix4` | 0.12 | 0.12 | 0.11 | 0.14 | 0.12 | 0.11 | 0.06 | 0.06 | 0.06 | 0.071 |
+
+- On 2023, the test year, the refreshed model beats the frozen one on all 50 days. It cuts the
+  amortized error by a third and the held-out wing error from 1.44 to 0.85 vp, against 0.82 for
+  `mix4`; on the 2022 wings it is the best arbitrage-free model (1.25 vp, `mix4` 1.31). These 2023
+  fit numbers are a first look: no 2023 fit had been computed for any model before (Phase 7 used
+  2023 for reversion and the backtest).
+- `mix4` still fits each day about five times more closely, and 80% of its model IVs fall inside the
+  bid-ask against 20% for the refreshed model. Refitting can at best bring the conditional model
+  back to its in-sample error (0.31–0.44 vp in 2019 and 2021). On the quarterly shift diagnostic
+  (`results/walkforward-shift/`) the refits close about half of the 2022 gap to that range,
+  from 0.73 / 1.19 / 1.19 / 1.46 to 0.68 / 0.94 / 0.72 / 0.90 vp, and in 2023 the error is
+  0.42–0.69 vp.
+- The guarantee carries over: zero calendar and butterfly violations, no failed fits.
+
+**More synthetic training years** (`configs/phase6_train_heston_multi.yaml`). The Heston model
+above trains on a single year, and Phase 7 found its precision collapsing once 2022 reached
+variance levels that year never visited. A second panel from the same generator
+(`synthetic:heston_train`, seed 10, 2012–2019, 2,087 days, independent of every evaluation
+panel) spans the generator's stationary 1st–99th variance percentiles. `cond_multi` trains on it
+plus 2020 (2,282 days) with the same architecture and early-stopping days. A further
+panel (`synthetic:heston_fresh`, seed 20, 2023) was generated for the test and not looked at
+beforehand. Truth error on held-out strikes (vp):
+
+| panel | `cond` | `cond_refined` | `cond_multi` | `cond_multi`, refined | `mix4` |
+|---|---|---|---|---|---|
+| Heston 2021 (validation) | 0.083 | 0.062 | 0.040 | 0.040 | 0.094 |
+| Heston 2022 (test) | 0.138 | 0.078 | 0.045 | 0.040 | 0.098 |
+| fresh panel, 2023 (test) | 0.152 | 0.082 | 0.045 | 0.042 | 0.099 |
+
+- With nine training years, the amortized model is less than half as far from the true surface as
+  `mix4` on every panel, in an 11 ms forward pass against 7.7 s. Its held-out wings are also
+  closest to the truth (0.11–0.13 vp, `mix4` 0.24–0.25), and 96% of its model IVs fall inside the
+  bid-ask (single-year model 83–85% on the test panels).
+- `mix4` stays closest to the quotes themselves (fit RMSE 0.13 against 0.16 vp), because it also
+  fits each day's quote noise.
 
 ## Mispricing detection and backtest
 
@@ -352,6 +412,60 @@ maturity–moneyness bucket, held for the same days.
 - Hit rates are 46% (next day) and 52% (same day) on SPX 2023, maximum drawdowns $409k and $268k,
   and turnover 66 and 77 contracts a day. The validation row is the best of the 12 cells it was
   selected from, so it is biased upward.
+
+**Follow-up detectors** (`configs/phase7b.yaml`). These detectors were chosen on the validation years
+and frozen with the configs. They were then run on the test years: a second look at Heston 2022
+and SPX 2023, and a first at the fresh synthetic panel.
+
+```bash
+make detector-tuning     # choose the pooled detector on Heston 2021
+make phase7b-validation  # detection and reversion tables on the validation years
+make phase7b-test        # the same on Heston 2022, the fresh panel and SPX 2023 (about two hours)
+```
+
+- *Pooled robust refit.* A mispriced segment survives the robust refit because each quote's Cauchy
+  weight reads only its own residual, and a smooth bump spread over 3–6 strikes leaves each one
+  small. With `pool = h`, a quote's weight uses the larger of its own residual and the mean
+  residual over up to h strikes on each side in its expiry. A run of same-signed residuals is then
+  down-weighted as a whole, while an isolated quote keeps its own weight. The setting was chosen
+  among 24 cells (pool 0–2, scale 0.125–1 half-spread, 4–16 passes) on every sixth day of Heston
+  2021. The rule was the highest recall at margin 0.5 among cells at least as precise as the
+  Phase 7 detector and with at least its recall on isolated strikes. The chosen detector, pooled
+  robust `mix4` (pool 2, scale 0.25, 16 passes), gains most from the stronger, longer
+  reweighting. The same cell without pooling reaches recall 0.48, against 0.50 with it and 0.42
+  for the Phase 7 detector.
+- *Multi-year conditional model.* `cond_multi` from Phase 6, the conditional model trained on
+  nine generator years instead of one, is scored as a detector.
+
+Detection at margin 0.5, Heston 2022 / fresh panel (2023):
+
+| detector | precision | recall | recall, isolated | recall, segments | segment absorbed |
+|---|---|---|---|---|---|
+| least-squares `mix4` | 0.90 / 0.90 | 0.39 / 0.40 | 0.53 / 0.55 | 0.21 / 0.23 | 56% / 55% |
+| robust `mix4` (Phase 7) | 0.95 / 0.95 | 0.44 / 0.46 | 0.58 / 0.59 | 0.27 / 0.30 | 52% / 52% |
+| pooled robust `mix4` | 0.96 / 0.96 | 0.52 / 0.54 | 0.62 / 0.64 | 0.40 / 0.43 | 34% / 33% |
+| conditional, one training year | 0.64 / 0.58 | 0.63 / 0.65 | 0.63 / 0.65 | 0.63 / 0.65 | 4% / 4% |
+| conditional, nine training years | **0.997 / 0.996** | 0.63 / 0.65 | 0.63 / 0.64 | 0.62 / 0.66 | 4% / 3% |
+
+- The multi-year conditional model is the best detector on both panels. Its precision is
+  0.995–0.998 in every quarter, and it keeps the single-year model's recall, including 62–66% of
+  mispriced segments. The single-year model loses precision in whichever quarters leave its
+  training range: 0.52 and 0.35 in 2022Q3–Q4, and 0.39 and 0.47 in the first half of the fresh
+  panel.
+- The pooled refit is the best per-day detector. At the Phase 7 detector's precision, it adds 8
+  points of recall and 13 of segment recall, and the median share of a mispriced segment absorbed
+  into the surface falls from 52% to 34%. The least-squares and robust rows reproduce Phase 7
+  exactly.
+- Flagged residuals of the multi-year detector revert −0.52 / −0.95 / −0.99 at 1 / 3 / 5 days on
+  Heston 2022, against an injected decay of −0.50 / −0.875 / −0.97.
+- SPX 2023, margin 4: the pooled detector flags 0.9% of quotes (robust `mix4` 0.4%), with at least
+  five flags on 211 days (144). Its flagged residuals revert −0.63 / −0.73 / −0.75 against −0.39 /
+  −0.49 / −0.55 for unflagged ones (p < 0.001 at every horizon; on SPX 2022 the gaps were −0.27 /
+  −0.23 / −0.32). That is more than twice as many flags, with a gap over unflagged residuals at
+  least as large as the Phase 7 detector's.
+- The backtest keeps the Phase 7 detector, as frozen before these runs, so its rows above are
+  unchanged. On SPX the conditional model is still not a detector: even refitted each quarter,
+  its 2023 error (0.3–0.5 vp) is several half-spreads.
 
 ## Roadmap
 
