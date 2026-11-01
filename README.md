@@ -8,7 +8,9 @@ maturities, which are then validated statistically and in a cost-aware, delta-he
 
 ## Results at a glance
 
-The best model on each task in the SPX validation year (2022). The 2023 test year is untouched.
+The best model on each task, in the SPX validation year (2022) unless a row names a test year. The
+test years (SPX 2023, synthetic Heston 2022) were run once, in Phase 7, with every setting frozen
+beforehand.
 
 | task | best model | result |
 |---|---|---|
