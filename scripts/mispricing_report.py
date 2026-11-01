@@ -1,18 +1,20 @@
 """Detection quality, residual reversion and the delta-hedged backtest for one split.
 
 Reads the per-quote tables of scripts/fit_panel.py and writes, per panel, to
-results/phase7-<split>/<source>/:
+results/<experiment>-<split>/<source>/ (the config's ``experiment``, phase7 by default):
 
 - detection.csv: flag rates for every detector and margin, and on synthetic panels precision and
   recall against the injected labels;
 - absorption.csv (synthetic panels): the share of each injected mispricing a detector's surface
   absorbs, by kind, and precision and recall by quarter;
 - reversion.csv: Fama-MacBeth reversion slopes of flagged against unflagged quotes;
-- backtest.csv: the strategy with next-day and same-day execution, its matched placebo and the
-  test of their difference; on synthetic panels also the true labels traded at the signal's close,
-  a check of the accounting (a perfect detector must make money net of costs).
+- backtest.csv (panels with a ``backtest`` entry): the strategy with next-day and same-day
+  execution, its matched placebo and the test of their difference; on synthetic panels also the
+  true labels traded at the signal's close, a check of the accounting (a perfect detector must make
+  money net of costs).
 
-Everything is set in configs/phase7.yaml and was chosen on the validation years.
+Detection and reversion use the panel's ``margin``, or its backtest margin. A panel is skipped for
+a split it has no year for. Everything is set in the config and was chosen on the validation years.
 """
 
 from __future__ import annotations
@@ -124,16 +126,18 @@ def main() -> None:
     parser.add_argument("--config", default="configs/phase7.yaml")
     parser.add_argument("--split", choices=["validation", "test"], required=True)
     parser.add_argument("--sources", nargs="*", help="panels to run (default: all)")
-    parser.add_argument("--fits", default="results/phase7-fits")
+    parser.add_argument("--fits", help="per-quote tables (default: results/<experiment>-fits)")
     args = parser.parse_args()
 
     spec = load_yaml(args.config)
+    args.fits = args.fits or f"results/{spec.get('experiment', 'phase7')}-fits"
     for source, panel in spec["panels"].items():
-        if args.sources and source not in args.sources:
+        if (args.sources and source not in args.sources) or args.split not in panel:
             continue
         name = source.replace(":", "_")
         table = pd.read_parquet(Path(args.fits) / name / f"{panel[args.split]}.parquet")
-        out = Path("results") / f"phase7-{args.split}" / name
+        out = Path("results") / f"{spec.get('experiment', 'phase7')}-{args.split}" / name
+        margin = panel.get("margin", panel.get("backtest", {}).get("margin"))
         out.mkdir(parents=True, exist_ok=True)
         print(
             f"== {source} {panel[args.split]}: {table['date'].nunique()} days, {len(table)} quotes"
@@ -143,15 +147,15 @@ def main() -> None:
         det.to_csv(out / "detection.csv", index=False)
         print(det.round(3).to_string(index=False))
         if "label" in table:
-            ab = absorption(table, panel["detectors"], panel["backtest"]["margin"])
+            ab = absorption(table, panel["detectors"], margin)
             ab.to_csv(out / "absorption.csv", index=False)
             print(ab.round(3).to_string(index=False))
-        rev = reversion(table, panel["detectors"], panel["backtest"]["margin"],
-                        spec["reversion"]["horizons"])  # fmt: skip
+        rev = reversion(table, panel["detectors"], margin, spec["reversion"]["horizons"])
         rev.to_csv(out / "reversion.csv", index=False)
         print(rev.round(3).to_string(index=False))
-        bt = backtest(table, panel["detectors"][0], dict(panel["backtest"]))
-        bt.to_csv(out / "backtest.csv", index=False)
+        if "backtest" in panel:
+            bt = backtest(table, panel["detectors"][0], dict(panel["backtest"]))
+            bt.to_csv(out / "backtest.csv", index=False)
 
 
 if __name__ == "__main__":

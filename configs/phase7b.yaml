@@ -1,0 +1,38 @@
+# Phase 7b: the Phase 7 detection and reversion tests with two improvements, each chosen on the
+# validation years only and frozen here before any test-year run:
+#   seg         robust mix4 refits with run-pooled Cauchy weights (pool 2 strikes, scale 0.25,
+#               16 passes), chosen on Heston 2021 by configs/detector_tuning.yaml; the grid
+#               stopped at 16 passes, where doubling from 8 added 0.01 recall
+#   cond_multi  the synthetic conditional model trained over eight further years of the generator
+#               (configs/phase6_train_heston_multi.yaml), scored next to the Phase 6 one (cond)
+# The SPX backtest is not rerun: its traded detector (iv_rob) and settings stay those of Phase 7.
+# SPX 2023 and synthetic Heston 2022 were used once in Phase 7, so their rows here are a second
+# look; synthetic:heston_fresh (a new seed, dated 2023) is the untouched test panel.
+#   make phase7b-validation   # fits and reports the validation years
+#   make phase7b-test         # the test panels, once, with this file unchanged
+experiment: phase7b
+robust: {passes: 2, scale: 1.0, lbfgs_iters: 100, refine_iters: 100}  # Phase 7 (iv_rob)
+variants:
+  seg: {pool: 2, scale: 0.25, passes: 16}
+
+detection:
+  margins: [0.0, 0.5, 1.0, 2.0, 4.0, 6.0]
+
+reversion:
+  horizons: [1, 3, 5]
+
+panels:
+  synthetic:heston:
+    validation: 2021
+    test: 2022
+    detectors: [iv_cond_multi, iv_cond, iv_seg, iv_rob, iv_ls]
+    margin: 0.5     # the Phase 7 synthetic margin
+  synthetic:heston_fresh:
+    test: 2023
+    detectors: [iv_cond_multi, iv_cond, iv_seg, iv_rob, iv_ls]
+    margin: 0.5
+  spx:
+    validation: 2022
+    test: 2023
+    detectors: [iv_seg, iv_rob, iv_ls]
+    margin: 4.0     # the Phase 7 SPX margin

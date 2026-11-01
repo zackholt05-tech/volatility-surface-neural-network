@@ -1,0 +1,21 @@
+# The synthetic Heston conditional model trained over more of the generator's variance range: the
+# Phase 6 training year (2020, its last quarter held out for early stopping, as in heston_d8) plus
+# eight years of the same generator on a new seed (synthetic:heston_train, dated 2012-2019). The
+# length of the added path was set from the generator's stationary law, not from any evaluation
+# year: log-variance is OU with stationary sd 2/sqrt(2 * 5) = 0.63 around log(0.18^2), and the path
+# must span the law's 1st-99th percentiles (variance 0.0074 to 0.141). Epochs are about twelve times
+# longer than heston_d8's, so the epoch cap and patience are lower.
+name: heston_multi_d8
+source: "synthetic:heston"
+years: [2020]
+val_start: "2020-10-01"
+extra_sources:
+  "synthetic:heston_train": [2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019]
+model: {latent_dim: 8, components: 4, enc_hidden: 128, dec_hidden: [256, 256]}
+context: {wing_max: 0.2, interior_max: 0.9, slice_prob: 0.3, slice_max: 0.5}
+batch_days: 16
+target_quotes: 1024
+context_cap: 2048
+lr: 1.0e-3
+epochs: 100
+patience: 15

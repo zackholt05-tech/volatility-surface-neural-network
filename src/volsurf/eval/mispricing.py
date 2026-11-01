@@ -6,10 +6,12 @@ squares for a Cauchy loss on spread-normalized residuals: a quote u half-spreads
 gets its half-spread widened by sqrt(1 + (u/c)^2), which is the Cauchy weight, and the surface is
 refitted from the previous pass. This mostly protects against isolated mispricings: a mispriced
 segment of neighbouring strikes is a smooth bump that one expiry's smile can bend to, so per-day
-surfaces absorb much of it whatever the loss. The cross-day conditional model, whose surfaces vary
-only through a low-dimensional latent, absorbs very little of either and is scored alongside when a
-checkpoint is given. Every quote is scored, including legs of model-free arbitrage, which stay out
-of the fit as in the evaluation harness.
+surfaces absorb much of it whatever the loss. With ``pool > 0`` the weight also reads the mean
+residual of each quote's neighbouring strikes in its expiry, so a run of same-signed residuals is
+down-weighted as a whole while an isolated quote keeps its own Cauchy weight. The cross-day
+conditional model, whose surfaces vary only through a low-dimensional latent, absorbs very little of
+either and is scored alongside when a checkpoint is given. Every quote is scored, including legs of
+model-free arbitrage, which stay out of the fit as in the evaluation harness.
 
 Residuals are signed so that positive means the market is rich (quoted above the model). A quote
 is flagged when the model price lies outside the bid-ask by more than ``margin`` half-spreads.
@@ -43,6 +45,7 @@ class RobustConfig:
     scale: float = 1.0  # Cauchy scale c, in half-spreads
     lbfgs_iters: int = 100  # per reweighted refit (each starts from the previous pass)
     refine_iters: int = 100  # latent refinement of the conditional model, when one is scored
+    pool: int = 0  # strikes on each side pooled into a run residual; 0 weights each quote alone
 
 
 @dataclass
@@ -69,6 +72,31 @@ def cauchy_spreads(s: np.ndarray, u: np.ndarray, scale: float) -> np.ndarray:
     return s * np.sqrt(1.0 + (u / scale) ** 2)
 
 
+def pooled_residuals(u: np.ndarray, k: np.ndarray, slice_id: np.ndarray, h: int) -> np.ndarray:
+    """Mean of ``u`` over each quote and up to ``h`` neighbouring strikes on either side in the
+    same expiry."""
+    order = np.lexsort((k, slice_id))
+    us, sid = u[order], slice_id[order]
+    total, count = us.copy(), np.ones_like(us)
+    for d in range(1, h + 1):
+        same = sid[d:] == sid[:-d]
+        total[d:] += np.where(same, us[:-d], 0.0)
+        total[:-d] += np.where(same, us[d:], 0.0)
+        count[d:] += same
+        count[:-d] += same
+    out = np.empty_like(u)
+    out[order] = total / count
+    return out
+
+
+def robust_residuals(u: np.ndarray, data: FitData, pool: int) -> np.ndarray:
+    """The residual that sets each quote's Cauchy weight: its own, or with ``pool`` the larger
+    of its own and its run's."""
+    if pool == 0:
+        return u
+    return np.maximum(np.abs(u), np.abs(pooled_residuals(u, data.k, data.slice_id, pool)))
+
+
 def fit_robust(
     data: FitData, cfg: RobustConfig, cold: SurfaceState | None = None
 ) -> list[SurfaceState]:
@@ -78,7 +106,7 @@ def fit_robust(
     refit = replace(MIX4, warm_lbfgs_iters=cfg.lbfgs_iters)
     for _ in range(cfg.passes):
         prev = states[-1].model()
-        u = (prev.iv(data.k, data.T) - data.iv) / data.s
+        u = robust_residuals((prev.iv(data.k, data.T) - data.iv) / data.s, data, cfg.pool)
         weighted = replace(data, s=cauchy_spreads(data.s, u, cfg.scale))
         states.append(SurfaceState.of(NeuralESSVISurface(refit).fit(weighted, init=prev)))
     return states
@@ -102,11 +130,15 @@ def score_day(
     quotes: pd.DataFrame,
     cfg: RobustConfig,
     cold: SurfaceState | None = None,
-    checkpoint: str | None = None,
+    checkpoints: dict[str, str] | None = None,
     resid_floor: float = RESID_FLOOR,
+    variants: dict[str, RobustConfig] | None = None,
 ) -> tuple[pd.DataFrame, list[SurfaceState], float]:
-    """Fit one day and return its per-quote table (least-squares and robust model IVs, and the
-    refined conditional model's when a checkpoint is given), the mix4 surfaces and fit time."""
+    """Fit one day and return its per-quote table, the mix4 surfaces and the fit time.
+
+    The table has the least-squares and robust model IVs (``iv_ls``, ``iv_rob``), ``iv_<name>``
+    for each further robust config in ``variants`` (each refitted from the least-squares
+    surface), and ``iv_<name>`` of the refined conditional model of each checkpoint."""
     torch.set_num_threads(1)
     q = quotes.sort_values(["T", "k"]).reset_index(drop=True)
     arb = arb_legs(q)
@@ -120,9 +152,11 @@ def score_day(
     out["arb_leg"] = arb
     out["iv_ls"] = states[0].model().iv(k, T)
     out["iv_rob"] = states[-1].model().iv(k, T)
-    if checkpoint:  # not reweighted: the encoder reads half-spreads as an input
-        cond = ConditionalSurface(checkpoint, refine_iters=cfg.refine_iters).fit(data)
-        out["iv_cond"] = cond.iv(k, T)
+    for name, variant in (variants or {}).items():
+        out[f"iv_{name}"] = fit_robust(data, variant, states[0])[-1].model().iv(k, T)
+    for name, path in (checkpoints or {}).items():  # not reweighted: the encoder reads spreads
+        cond = ConditionalSurface(path, refine_iters=cfg.refine_iters).fit(data)
+        out[f"iv_{name}"] = cond.iv(k, T)
     return out, states, seconds
 
 

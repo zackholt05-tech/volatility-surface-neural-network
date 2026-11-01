@@ -48,3 +48,13 @@ datasets:
     surface: heston
     seed: 2
     injection: {point_prob: 0.0, segment_prob: 0.0}
+  heston_train:             # further training days for the conditional model: the same generator
+    surface: heston         # on a new seed, eight years dated before the main panel (2012-2019)
+    seed: 10
+    start: "2012-01-02"
+    n_days: 2087
+  heston_fresh:             # a test year that no model, setting or report has seen (new seed)
+    surface: heston
+    seed: 20
+    start: "2023-01-02"
+    n_days: 260

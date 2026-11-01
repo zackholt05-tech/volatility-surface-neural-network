@@ -6,6 +6,8 @@ to infer a whole surface from a partial chain. Contexts combine the ways quotes 
 evaluation: outer wings cut off, interior strikes dropped at random and whole maturities dropped,
 with observed shares ranging from sparse to complete chains. Early stopping uses the last months of
 the training years, encoded exactly as the evaluation harness does (its fit mask as context).
+Further panels (``extra_sources``) add training days only. ``fine_tune`` continues a trained model
+on the days up to a cutoff, as in the quarterly walk-forward refits.
 """
 
 from __future__ import annotations
@@ -44,6 +46,7 @@ class TrainConfig:
     source: str = "spx"
     years: tuple[int, ...] = (2018, 2019, 2020, 2021)
     val_start: str = "2021-10-01"  # days from here on are held out for early stopping
+    extra_sources: dict = field(default_factory=dict)  # {source: years}: every day trains
     model: ConditionalConfig = field(default_factory=ConditionalConfig)
     context: ContextConfig = field(default_factory=ContextConfig)
     batch_days: int = 16
@@ -170,6 +173,39 @@ def evaluate(net: ConditionalNet, days: list[TrainDay], batch_days: int) -> dict
     }
 
 
+def _train_epoch(net, opt, days: list[TrainDay], cfg: TrainConfig, rng, grid, last_good):
+    """One pass over ``days`` in random order; returns the step losses, the count of days with a
+    non-finite loss, the count of rolled-back steps and the last finite weights."""
+    net.train()
+    order = rng.permutation(len(days))
+    losses, dropped, rollbacks = [], 0, 0
+    for b in range(0, len(order), cfg.batch_days):
+        chunk = [days[i] for i in order[b : b + cfg.batch_days]]
+        ctx = make_batch(
+            chunk, [sample_context(d, cfg.context, rng) for d in chunk], grid, cfg.context_cap, rng
+        )
+        tgt = make_batch(
+            chunk, [np.ones(len(d.k), bool) for d in chunk], grid, cfg.target_quotes, rng
+        )
+        per_day = per_day_loss(net.iv(net.encode(ctx), tgt), tgt)
+        finite = torch.isfinite(per_day)
+        dropped += int((~finite).sum())
+        if not finite.any():
+            continue
+        loss = per_day[finite].mean()
+        opt.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(net.parameters(), cfg.grad_clip)
+        opt.step()
+        if all(torch.isfinite(p).all() for p in net.parameters()):
+            last_good = copy.deepcopy(net.state_dict())
+            losses.append(float(loss))
+        else:  # one bad step must not poison the shared weights
+            net.load_state_dict(last_good)
+            rollbacks += 1
+    return losses, dropped, rollbacks, last_good
+
+
 def train(cfg: TrainConfig, log=print, on_epoch=None) -> tuple[ConditionalNet, dict]:
     torch.manual_seed(cfg.seed)
     torch.set_num_threads(cfg.threads)
@@ -179,6 +215,8 @@ def train(cfg: TrainConfig, log=print, on_epoch=None) -> tuple[ConditionalNet, d
     val_start = pd.Timestamp(cfg.val_start)
     train_days = [d for d in days if d.date < val_start]
     val_days = [d for d in days if d.date >= val_start]
+    for source, years in cfg.extra_sources.items():
+        train_days += prepare_days(source, years)
     if cfg.max_days:
         train_days = train_days[:: max(1, len(train_days) // cfg.max_days)][: cfg.max_days]
         val_days = val_days[:: max(1, len(val_days) // max(cfg.max_days // 4, 1))]
@@ -202,38 +240,9 @@ def train(cfg: TrainConfig, log=print, on_epoch=None) -> tuple[ConditionalNet, d
     stale, history = 0, []
     for epoch in range(cfg.epochs):
         start = time.perf_counter()
-        net.train()
-        order = rng.permutation(len(train_days))
-        losses, dropped, rollbacks = [], 0, 0
-        for b in range(0, len(order), cfg.batch_days):
-            chunk = [train_days[i] for i in order[b : b + cfg.batch_days]]
-            ctx = make_batch(
-                chunk,
-                [sample_context(d, cfg.context, rng) for d in chunk],
-                grid,
-                cfg.context_cap,
-                rng,
-            )
-            tgt = make_batch(
-                chunk, [np.ones(len(d.k), bool) for d in chunk], grid, cfg.target_quotes, rng
-            )
-            per_day = per_day_loss(net.iv(net.encode(ctx), tgt), tgt)
-            finite = torch.isfinite(per_day)
-            dropped += int((~finite).sum())
-            if not finite.any():
-                continue
-            loss = per_day[finite].mean()
-            opt.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(net.parameters(), cfg.grad_clip)
-            opt.step()
-            if all(torch.isfinite(p).all() for p in net.parameters()):
-                last_good = copy.deepcopy(net.state_dict())
-                losses.append(float(loss))
-            else:  # one bad step must not poison the shared weights
-                net.load_state_dict(last_good)
-                rollbacks += 1
-
+        losses, dropped, rollbacks, last_good = _train_epoch(
+            net, opt, train_days, cfg, rng, grid, last_good
+        )
         net.eval()
         val = evaluate(net, val_days, cfg.batch_days)
         sched.step(val["loss"])
@@ -265,3 +274,38 @@ def train(cfg: TrainConfig, log=print, on_epoch=None) -> tuple[ConditionalNet, d
     net.load_state_dict(best_state)
     net.meta = {"best": best, "history": history, "init_day": str(typical.date.date())}
     return net.eval(), best
+
+
+def fine_tune(
+    net: ConditionalNet, days: list[TrainDay], cfg: TrainConfig, snapshots, log=print
+) -> tuple[dict[int, dict], list[dict]]:
+    """Continue training ``net`` on ``days`` at the constant learning rate ``cfg.lr``, with no
+    early stopping, feature statistics and decoder kept; returns copies of its weights after each
+    epoch count in ``snapshots``, and the per-epoch history."""
+    torch.manual_seed(cfg.seed)
+    torch.set_num_threads(cfg.threads)
+    rng = np.random.default_rng(cfg.seed)
+    grid = net.grid.numpy()
+    opt = torch.optim.Adam(net.parameters(), lr=cfg.lr)
+    last_good = copy.deepcopy(net.state_dict())
+    states, history = {}, []
+    for epoch in range(1, max(snapshots) + 1):
+        start = time.perf_counter()
+        losses, dropped, rollbacks, last_good = _train_epoch(
+            net, opt, days, cfg, rng, grid, last_good
+        )
+        row = {
+            "epoch": epoch,
+            "train_loss": float(np.mean(losses)) if losses else float("nan"),
+            "dropped_days": dropped,
+            "rollbacks": rollbacks,
+            "seconds": time.perf_counter() - start,
+        }
+        history.append(row)
+        log(
+            " ".join(f"{k}={v:.4g}" if isinstance(v, float) else f"{k}={v}" for k, v in row.items())
+        )
+        if epoch in snapshots:
+            states[epoch] = copy.deepcopy(net.state_dict())
+    net.eval()
+    return states, history

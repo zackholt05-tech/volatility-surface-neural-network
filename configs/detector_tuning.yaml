@@ -1,0 +1,13 @@
+# Selection of the run-pooled robust detector (src/volsurf/eval/mispricing.py, RobustConfig.pool) on
+# the synthetic validation year only. Every grid cell refits each sampled day from the cached
+# least-squares mix4 surface of Phase 7 (results/phase7-fits). Rule, fixed before the run: the
+# highest recall at the margin below, among cells whose precision and point recall are no lower
+# than those of the Phase 7 robust detector (iv_rob) on the same days.
+source: synthetic:heston
+year: 2021
+every: 6            # every 6th screened day
+margin: 0.5         # the Phase 7 synthetic backtest margin
+robust: {passes: 2, scale: 1.0, lbfgs_iters: 100, refine_iters: 100}  # Phase 7, unchanged
+grids:  # the union of cells; the second grid extends the first past its selected corner
+  - {pool: [0, 1, 2], scale: [0.25, 0.5, 1.0], passes: [4, 8]}
+  - {pool: [0, 2], scale: [0.125, 0.25], passes: [8, 16]}

@@ -11,7 +11,14 @@ from volsurf.eval.backtest import (
     stays_quoted,
     trade_pnl,
 )
-from volsurf.eval.mispricing import cauchy_spreads, flag, precision_recall
+from volsurf.eval.dayset import FitData
+from volsurf.eval.mispricing import (
+    cauchy_spreads,
+    flag,
+    pooled_residuals,
+    precision_recall,
+    robust_residuals,
+)
 from volsurf.eval.reversion import daily_slopes, summarize_slopes
 from volsurf.pricing import black76
 
@@ -155,3 +162,18 @@ def test_held_contract_bridges_a_quote_gap_and_entries_stay_inside_the_panel():
     short = BacktestConfig(hold=3, lag=0, min_dte=58, z_range=(-50.0, 50.0))
     assert run_signals(table, signal, never, short).empty
     assert stays_quoted(Market(table), short).sum() == 0
+
+
+def test_pooled_residuals_stay_within_an_expiry_and_keep_isolated_quotes():
+    u = np.array([3.0, 3.0, 3.0, 0.0, 0.0, 6.0, 0.0, 0.0])
+    k = np.array([0.0, 0.1, 0.2, 0.3, 0.0, 0.1, 0.2, 0.3])
+    slice_id = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+    order = np.random.default_rng(0).permutation(len(u))  # input order must not matter
+    pooled = np.empty_like(u)
+    pooled[order] = pooled_residuals(u[order], k[order], slice_id[order], 1)
+    np.testing.assert_allclose(pooled, [3.0, 3.0, 2.0, 1.5, 3.0, 2.0, 2.0, 0.0])
+    data = FitData(k, k, u, np.ones_like(u), slice_id, np.array([0.1, 0.2]))
+    weighted = robust_residuals(u, data, 1)
+    assert weighted[1] == 3.0 and weighted[5] == 6.0  # a run keeps its level, a point its own
+    assert weighted[3] == 1.5  # a quote next to a run is down-weighted with it
+    assert robust_residuals(u, data, 0) is u

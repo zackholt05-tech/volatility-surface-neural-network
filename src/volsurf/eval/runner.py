@@ -118,6 +118,17 @@ def _evaluate(model, day, cfg: EvalConfig, row: dict, init=None) -> dict:
     return row
 
 
+def for_date(spec, date):
+    """Fill ``{quarter}`` (e.g. 2022Q3) in string parameters with the quarter of ``date``, so a
+    day is scored by the model refitted for its quarter."""
+    if isinstance(spec, dict):
+        return {k: for_date(v, date) for k, v in spec.items()}
+    if isinstance(spec, list):
+        return [for_date(v, date) for v in spec]
+    quarter = f"{date.year}Q{(date.month - 1) // 3 + 1}"
+    return spec.replace("{quarter}", quarter) if isinstance(spec, str) else spec
+
+
 def evaluate_block(spec: dict, block: list[pd.DataFrame], cfg: EvalConfig) -> list[dict]:
     """Fit one model on a block of consecutive days, in order.
 
@@ -133,7 +144,9 @@ def evaluate_block(spec: dict, block: list[pd.DataFrame], cfg: EvalConfig) -> li
         row = {"model": spec["name"], "date": date}
         try:
             day = make_day(quotes, cfg.holdout, cfg.resid_floor)
-            model = build_model(spec, seed=date_seed(date) + spec.get("seed_offset", 0))
+            model = build_model(
+                for_date(spec, date), seed=date_seed(date) + spec.get("seed_offset", 0)
+            )
             init = previous if spec.get("warm_start") else None
             rows.append(_evaluate(model, day, cfg, row, init))
             previous = model

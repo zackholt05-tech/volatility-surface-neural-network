@@ -1,0 +1,21 @@
+# Quarterly walk-forward refits of the SPX conditional model. For each quarter, the Phase 6 model
+# (artifacts/conditional/spx_d8.pt: 2018 to Sep 2021, early-stopped on 2021Q4) is fine-tuned on
+# every screened day dated before the quarter starts, and that quarter's days are scored with it.
+# Each quarter is refitted from the Phase 6 model, not from the previous quarter's, so the epoch
+# count is not confounded with the chain. The count is chosen on the validation year (2022) from
+# snapshots of one run per quarter: the lowest mean amortized fit RMSE over the 2022 harness days
+# (configs/walkforward_validation.yaml), fewer epochs on a tie. The test year (2023) reuses it.
+name: spx
+base: artifacts/conditional/spx_d8.pt
+source: spx
+first_year: 2018
+quarters:
+  validation: [2022Q1, 2022Q2, 2022Q3, 2022Q4]
+  test: [2023Q1, 2023Q2, 2023Q3, 2023Q4]
+snapshots: [10, 20, 40]
+train:  # TrainConfig fields: the Phase 6 settings (configs/phase6_train_spx.yaml) at a lower rate
+  context: {wing_max: 0.2, interior_max: 0.9, slice_prob: 0.3, slice_max: 0.5}
+  batch_days: 16
+  target_quotes: 1024
+  context_cap: 2048
+  lr: 3.0e-4

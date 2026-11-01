@@ -4,7 +4,8 @@ For a sample of days per quarter it reports the amortized and latent-refined err
 the error after thinning the context's short-dated expiries back to the training years' count (a
 change in chain composition), and the error of a free per-day mix4 fit, before and after it is
 moved onto the decoder's maturity grid (whether the grid can express the surface at all). The
-market state is summarized by the ATM skew, dIV/dk over |k| < 0.05.
+market state is summarized by the ATM skew, dIV/dk over |k| < 0.05. A ``{quarter}`` in the
+checkpoint path (e.g. walk-forward refits) is filled with each day's quarter.
 """
 
 from __future__ import annotations
@@ -34,7 +35,8 @@ def _rmse(iv, target) -> float:
 def _day_row(args) -> dict:
     checkpoint, day, seed = args
     torch.set_num_threads(1)
-    net = load_cached(checkpoint)
+    quarter = f"{day.date.year}Q{(day.date.month - 1) // 3 + 1}"
+    net = load_cached(checkpoint.replace("{quarter}", quarter))
     grid = net.grid
     q = make_batch([day], [np.ones(len(day.k), bool)], grid.numpy(), None, None)
     T = np.unique(day.T)
@@ -65,7 +67,7 @@ def _day_row(args) -> dict:
     atm = np.abs(day.k) < 0.05
     return {
         "date": day.date,
-        "quarter": f"{day.date.year}Q{(day.date.month - 1) // 3 + 1}",
+        "quarter": quarter,
         "atm_skew": np.polyfit(day.k[atm], day.iv[atm], 1)[0],
         "short_expiries": len(short),
         "amortized_vp": amortized,
