@@ -36,7 +36,9 @@ def main() -> None:
 
     spec = load_yaml(args.config)
     cfg = replace(from_dict(TrainConfig, spec["train"]), source=spec["source"])
-    snapshots = tuple(args.snapshots or spec["snapshots"])
+    # the test split refits only with the epoch count chosen on the validation split
+    default = [spec["chosen"]] if args.split == "test" else spec["snapshots"]
+    snapshots = tuple(args.snapshots or default)
     quarters = spec["quarters"][args.split]
     out = Path(args.out)
     last_year = max(int(q[:4]) for q in quarters)
