@@ -18,12 +18,12 @@ robust detector.
 | task | best model | result |
 |---|---|---|
 | fit a day's chain | eSSVI price mixture `mix4` | 0.121 vp RMSE, 81% of model IVs inside the bid-ask, zero arbitrage |
-| extrapolate the wings | penalized network `pnn` | 0.86 vp (0.38% calendar violations left); best arbitrage-free: conditional model refitted quarterly, 1.25 vp (`mix4` 1.31; on 2023, 0.85 and 0.82) |
+| extrapolate the wings | penalized network `pnn` | 0.86 vp (0.38% calendar violations left); best arbitrage-free: `mix4`, 1.31 vp, about even with the conditional model refitted quarterly (1.25 vp; on 2023, `mix4` 0.82 and the refitted model 0.85) |
 | fill missing strikes | `mix4` | 0.155 vp with 90% of interior strikes held out |
 | fill missing maturities | `mix4` | 0.34 vp with 30% of inner maturities held out (conditional model 0.64; SVI 0.65 with calendar arbitrage) |
 | fit fast | conditional model, amortized and refitted quarterly | 0.05 s per day, against about 30 s for `mix4`, at 0.63 vp (SPX 2023 test year: 0.40 vp, `mix4` 0.071) |
 | forecast the surface | none | no model beats the random walk significantly at 1, 5 or 20 days |
-| detect mispricings (synthetic test panels) | conditional model trained on nine years | 0.997 / 0.63 precision / recall on Heston 2022 (robust `mix4` 0.95 / 0.44, pooled robust `mix4` 0.96 / 0.52); finds 62% of mispriced segments against 27% and 40% |
+| detect mispricings (synthetic test panels) | conditional model trained on nine years | 0.996 / 0.65 precision / recall on the fresh panel (robust `mix4` 0.95 / 0.46, pooled robust `mix4` 0.96 / 0.54); finds 66% of mispriced segments against 30% and 43%; Heston 2022 alike |
 | trade them (SPX 2023 test year) | none | flagged quotes revert faster (p ≤ 0.003), but next-day execution loses money net of the spread |
 
 On the synthetic Heston panels, whose regime does not change between years, the cross-day
@@ -291,10 +291,11 @@ before 2023 was run. Fit RMSE (vp) on the harness days:
 | `mix4` | 0.12 | 0.12 | 0.11 | 0.14 | 0.12 | 0.11 | 0.06 | 0.06 | 0.06 | 0.071 |
 
 - On 2023, the test year, the refreshed model beats the frozen one on all 50 days. It cuts the
-  amortized error by a third and the held-out wing error from 1.44 to 0.85 vp, against 0.82 for
-  `mix4`; on the 2022 wings it is the best arbitrage-free model (1.25 vp, `mix4` 1.31). These 2023
-  fit numbers are a first look: no 2023 fit had been computed for any model before (Phase 7 used
-  2023 for reversion and the backtest).
+  amortized error by a third and the held-out wing error from 1.44 to 0.85 vp. On the wings it is
+  about even with `mix4`: 0.85 against 0.82 vp in 2023 (better on 19 of 50 days) and 1.25 against
+  1.31 in 2022 (28 of 52). These are the first surface-fit metrics computed on 2023. Phase 7
+  fitted `mix4` on every 2023 day for reversion and the backtest, but never scored the fits, and
+  nothing about the conditional model was tuned on 2023.
 - `mix4` still fits each day about five times more closely, and 80% of its model IVs fall inside the
   bid-ask against 20% for the refreshed model. Refitting can at best bring the conditional model
   back to its in-sample error (0.31–0.44 vp in 2019 and 2021). On the quarterly shift diagnostic
@@ -310,7 +311,8 @@ variance levels that year never visited. A second panel from the same generator
 panel) spans the generator's stationary 1st–99th variance percentiles. `cond_multi` trains on it
 plus 2020 (2,282 days) with the same architecture and early-stopping days. A further
 panel (`synthetic:heston_fresh`, seed 20, 2023) was generated for the test and not looked at
-beforehand. Truth error on held-out strikes (vp):
+beforehand. It is this model's clean test: Heston 2022 is where the single-year model's failure
+motivated it. Truth error on held-out strikes (vp):
 
 | panel | `cond` | `cond_refined` | `cond_multi` | `cond_multi`, refined | `mix4` |
 |---|---|---|---|---|---|
@@ -437,7 +439,7 @@ make phase7b-test        # the same on Heston 2022, the fresh panel and SPX 2023
 - *Multi-year conditional model.* `cond_multi` from Phase 6, the conditional model trained on
   nine generator years instead of one, is scored as a detector.
 
-Detection at margin 0.5, Heston 2022 / fresh panel (2023):
+Detection at margin 0.5, Heston 2022 / fresh panel (2023; the multi-year model's clean test):
 
 | detector | precision | recall | recall, isolated | recall, segments | segment absorbed |
 |---|---|---|---|---|---|
@@ -449,9 +451,9 @@ Detection at margin 0.5, Heston 2022 / fresh panel (2023):
 
 - The multi-year conditional model is the best detector on both panels. Its precision is
   0.995–0.998 in every quarter, and it keeps the single-year model's recall, including 62–66% of
-  mispriced segments. The single-year model loses precision in whichever quarters leave its
-  training range: 0.52 and 0.35 in 2022Q3–Q4, and 0.39 and 0.47 in the first half of the fresh
-  panel.
+  mispriced segments. The single-year model loses precision in two quarters of each panel: 0.52
+  and 0.35 in 2022Q3–Q4, where the variance falls below its training year, and 0.39 and 0.47 in
+  the first half of the fresh panel.
 - The pooled refit is the best per-day detector. At the Phase 7 detector's precision, it adds 8
   points of recall and 13 of segment recall, and the median share of a mispriced segment absorbed
   into the surface falls from 52% to 34%. The least-squares and robust rows reproduce Phase 7
