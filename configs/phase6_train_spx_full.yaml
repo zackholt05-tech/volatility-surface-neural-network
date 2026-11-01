@@ -1,0 +1,17 @@
+# The Phase 6 SPX conditional model (configs/phase6_train_spx.yaml), every setting unchanged,
+# trained on the whole history before the validation year: 2010 to Sep 2021, early-stopped on
+# 2021Q4 as before. On synthetic Heston, more training years fixed the conditional model's failure
+# out of regime; this checks whether the same holds on SPX.
+name: spx_full_d8
+source: spx
+years: [2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021]
+val_start: "2021-10-01"
+model: {latent_dim: 8, components: 4, enc_hidden: 128, dec_hidden: [256, 256]}
+context: {wing_max: 0.2, interior_max: 0.9, slice_prob: 0.3, slice_max: 0.5}
+batch_days: 16
+target_quotes: 1024
+context_cap: 2048
+lr: 1.0e-3
+epochs: 300
+patience: 30
+threads: 4  # two trainings share the machine; numerics only

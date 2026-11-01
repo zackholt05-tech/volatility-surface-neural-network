@@ -1,0 +1,17 @@
+# Replication: the Phase 6 SPX conditional model (configs/phase6_train_spx.yaml), every setting
+# unchanged, trained on 2010 to Sep 2015 and early-stopped on 2015Q4, so that no day of the
+# replication window (2016-2017, configs/replication_test.yaml) is seen in training or model
+# selection. The window is the first SPX data not used for any choice in this project.
+name: spx_rep_d8
+source: spx
+years: [2010, 2011, 2012, 2013, 2014, 2015]
+val_start: "2015-10-01"
+model: {latent_dim: 8, components: 4, enc_hidden: 128, dec_hidden: [256, 256]}
+context: {wing_max: 0.2, interior_max: 0.9, slice_prob: 0.3, slice_max: 0.5}
+batch_days: 16
+target_quotes: 1024
+context_cap: 2048
+lr: 1.0e-3
+epochs: 300
+patience: 30
+threads: 4  # two trainings share the machine; numerics only

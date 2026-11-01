@@ -14,7 +14,8 @@ results/<experiment>-<split>/<source>/ (the config's ``experiment``, phase7 by d
   money net of costs).
 
 Detection and reversion use the panel's ``margin``, or its backtest margin. A panel is skipped for
-a split it has no year for. Everything is set in the config and was chosen on the validation years.
+a split it has no year for; a split listing several years pools their tables into one panel.
+Everything is set in the config and was chosen on the validation years.
 """
 
 from __future__ import annotations
@@ -135,7 +136,11 @@ def main() -> None:
         if (args.sources and source not in args.sources) or args.split not in panel:
             continue
         name = source.replace(":", "_")
-        table = pd.read_parquet(Path(args.fits) / name / f"{panel[args.split]}.parquet")
+        years = panel[args.split] if isinstance(panel[args.split], list) else [panel[args.split]]
+        table = pd.concat(
+            [pd.read_parquet(Path(args.fits) / name / f"{y}.parquet") for y in years],
+            ignore_index=True,
+        )
         out = Path("results") / f"{spec.get('experiment', 'phase7')}-{args.split}" / name
         margin = panel.get("margin", panel.get("backtest", {}).get("margin"))
         out.mkdir(parents=True, exist_ok=True)

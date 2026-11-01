@@ -1,0 +1,31 @@
+# Replication on SPX 2016-2017 of the mispricing tests: the Phase 7 robust detector and backtest
+# (configs/phase7.yaml) and the Phase 7b pooled detector (configs/phase7b.yaml), every setting as
+# chosen on SPX 2022 and run once with this file unchanged. The traded detector is the first, as in
+# Phase 7.
+#   make replication-mispricing
+experiment: replication
+robust: {passes: 2, scale: 1.0, lbfgs_iters: 100, refine_iters: 100}  # Phase 7 (iv_rob)
+variants:
+  seg: {pool: 2, scale: 0.25, passes: 16}  # Phase 7b
+
+detection:
+  margins: [0.0, 0.5, 1.0, 2.0, 4.0, 6.0]
+
+reversion:
+  horizons: [1, 3, 5]
+
+panels:
+  spx:
+    test: [2016, 2017]
+    detectors: [iv_rob, iv_seg, iv_ls]
+    backtest:  # configs/phase7.yaml
+      margin: 4.0
+      exit_r: 0.5
+      hold: 5
+      lags: [1, 0]
+      fee: 1.0
+      target_vega: 1000.0
+      max_gap: 3
+      min_dte: 7
+      z_range: [-6.0, 4.0]
+      placebo_draws: 20

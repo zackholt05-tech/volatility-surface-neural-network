@@ -1,0 +1,21 @@
+# Quarterly walk-forward refits of the full-history SPX conditional model
+# (configs/phase6_train_spx_full.yaml) under the protocol of configs/walkforward_spx.yaml: each
+# quarter fine-tunes the base model on every screened day from 2010 dated before it. The epoch
+# count is chosen on 2022 the same way (configs/walkforward_full_validation.yaml) and set here
+# before any test-year run.
+name: spx_full
+base: artifacts/conditional/spx_full_d8.pt
+source: spx
+first_year: 2010
+quarters:
+  validation: [2022Q1, 2022Q2, 2022Q3, 2022Q4]
+  test: [2023Q1, 2023Q2, 2023Q3, 2023Q4]
+snapshots: [10, 20, 40]
+chosen: null  # set from the 2022 run before any 2023 run
+train:  # configs/walkforward_spx.yaml
+  context: {wing_max: 0.2, interior_max: 0.9, slice_prob: 0.3, slice_max: 0.5}
+  batch_days: 16
+  target_quotes: 1024
+  context_cap: 2048
+  lr: 3.0e-4
+  threads: 4

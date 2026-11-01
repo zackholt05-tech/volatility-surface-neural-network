@@ -1,0 +1,18 @@
+# Replication: quarterly walk-forward refits of the replication base model
+# (configs/replication_train_spx.yaml) over 2016-2017, under the protocol of
+# configs/walkforward_spx.yaml with the epoch count chosen there on 2022 (40). Each quarter
+# fine-tunes the base model on every screened day from 2010 dated before it. Frozen before the run.
+name: spx_rep
+base: artifacts/conditional/spx_rep_d8.pt
+source: spx
+first_year: 2010
+quarters:
+  test: [2016Q1, 2016Q2, 2016Q3, 2016Q4, 2017Q1, 2017Q2, 2017Q3, 2017Q4]
+chosen: 40
+train:  # configs/walkforward_spx.yaml
+  context: {wing_max: 0.2, interior_max: 0.9, slice_prob: 0.3, slice_max: 0.5}
+  batch_days: 16
+  target_quotes: 1024
+  context_cap: 2048
+  lr: 3.0e-4
+  threads: 4

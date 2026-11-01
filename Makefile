@@ -1,4 +1,4 @@
-.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast mispricing-validation mispricing-test detector-tuning heston-multi heston-multi-test walk-forward walk-forward-test phase7b-validation phase7b-test train mlflow report clean
+.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast mispricing-validation mispricing-test detector-tuning heston-multi heston-multi-test walk-forward walk-forward-test phase7b-validation phase7b-test full-history replication replication-mispricing train mlflow report clean
 
 CONFIG ?= configs/baselines.yaml
 
@@ -118,6 +118,25 @@ phase7b-test:  ## The same on the test panels, with configs/phase7b.yaml frozen
 	$(PY) scripts/fit_panel.py --config configs/phase7b.yaml --out results/phase7b-fits \
 		--source spx --years 2023 --seed-cache results/phase7-fits/spx/fits.pkl
 	$(PY) scripts/mispricing_report.py --config configs/phase7b.yaml --split test
+
+full-history:  ## Train the SPX conditional model on 2010-2021, refit it quarterly, score on 2022
+	$(PY) scripts/train_conditional.py --config configs/phase6_train_spx_full.yaml
+	$(PY) scripts/walk_forward.py --config configs/walkforward_spx_full.yaml --split validation
+	$(PY) scripts/evaluate_models.py --config configs/walkforward_full_validation.yaml
+
+replication:  ## Every surface model on SPX 2016-2017, conditional models retrained on 2010-2015
+	$(PY) scripts/train_conditional.py --config configs/replication_train_spx.yaml
+	$(PY) scripts/walk_forward.py --config configs/walkforward_replication.yaml --split test
+	$(PY) scripts/evaluate_models.py --config configs/replication_test.yaml
+	$(PY) scripts/evaluate_models.py --config configs/replication_gaps.yaml \
+		--experiment replication-gap-0.9 --set eval.holdout.interior_frac=0.9
+	$(PY) scripts/evaluate_models.py --config configs/replication_gaps.yaml \
+		--experiment replication-gap-slices --set eval.holdout.slice_frac=0.3
+
+replication-mispricing:  ## The Phase 7 and 7b detectors, reversion and backtest on SPX 2016-2017
+	$(PY) scripts/fit_panel.py --config configs/replication_mispricing.yaml \
+		--out results/replication-fits --source spx --years 2016 2017
+	$(PY) scripts/mispricing_report.py --config configs/replication_mispricing.yaml --split test
 
 train:  ## Evaluate one model from a config: make train MODEL=mlp [CONFIG=...]
 	$(PY) scripts/evaluate_models.py --config $(CONFIG) --models $(MODEL)
