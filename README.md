@@ -609,7 +609,7 @@ missing:
 |---|---|---|
 | SPX 2022–2023 | `make phase7b-validation phase7b-test` | `make full-history full-history-test` |
 | SPX 2016–2017 | `make replication-mispricing` | `make replication` |
-| Heston 2021–2022, Heston fresh 2023 | `make phase7b-validation phase7b-test` | `make heston-multi` |
+| Heston 2021–2022, Heston fresh 2023 | `make conditional heston-multi`, then `make phase7b-validation phase7b-test` | `make heston-multi` |
 
 ## Roadmap
 

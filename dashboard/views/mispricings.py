@@ -53,8 +53,12 @@ def render() -> None:
         hit = (table["injected"] != "").mean() if len(table) else np.nan
         c[3].metric("flags on injected mispricings", f"{100 * hit:.0f}%" if len(table) else "–")
     else:
-        back = later.loc[table.index, "r_1d"].abs() < np.abs(table["residual (half-spreads)"])
-        c[3].metric("smaller the next day", f"{100 * back.mean():.0f}%" if len(table) else "–")
+        nxt = later.loc[table.index, "r_1d"]
+        quoted = nxt.notna().to_numpy()
+        back = nxt[quoted].abs() < np.abs(table["residual (half-spreads)"][quoted])
+        c[3].metric(
+            "smaller the next day (if quoted)", f"{100 * back.mean():.0f}%" if quoted.any() else "–"
+        )
 
     if table.empty:
         st.info(

@@ -69,8 +69,9 @@ def render() -> None:
     )  # fmt: skip
     st.caption(
         "Every quote of the day but arbitrage legs, scored with the IVs of the mispricing runs. "
-        "The README's fit errors are lower because the evaluation harness holds the outer strikes "
-        "out of the fit and scores them separately, as wings."
+        "The README's fit errors come from the evaluation harness, which scores a different set "
+        "of quotes (outer strikes held out and scored as wings) on sampled days, so they are not "
+        "directly comparable."
     )
 
     st.subheader("Smile")
