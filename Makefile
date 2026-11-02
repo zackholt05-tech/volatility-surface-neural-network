@@ -1,4 +1,4 @@
-.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast mispricing-validation mispricing-test detector-tuning heston-multi heston-multi-test walk-forward walk-forward-test phase7b-validation phase7b-test full-history replication replication-mispricing train mlflow report clean
+.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast mispricing-validation mispricing-test detector-tuning heston-multi heston-multi-test walk-forward walk-forward-test phase7b-validation phase7b-test full-history full-history-test replication replication-mispricing train mlflow report clean
 
 CONFIG ?= configs/baselines.yaml
 
@@ -123,6 +123,10 @@ full-history:  ## Train the SPX conditional model on 2010-2021, refit it quarter
 	$(PY) scripts/train_conditional.py --config configs/phase6_train_spx_full.yaml
 	$(PY) scripts/walk_forward.py --config configs/walkforward_spx_full.yaml --split validation
 	$(PY) scripts/evaluate_models.py --config configs/walkforward_full_validation.yaml
+
+full-history-test:  ## The full-history refits on 2023 with the chosen epoch count, frozen config
+	$(PY) scripts/walk_forward.py --config configs/walkforward_spx_full.yaml --split test
+	$(PY) scripts/evaluate_models.py --config configs/walkforward_full_test.yaml
 
 replication:  ## Every surface model on SPX 2016-2017, conditional models retrained on 2010-2015
 	$(PY) scripts/train_conditional.py --config configs/replication_train_spx.yaml

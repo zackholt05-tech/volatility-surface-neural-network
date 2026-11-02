@@ -11,7 +11,7 @@ quarters:
   validation: [2022Q1, 2022Q2, 2022Q3, 2022Q4]
   test: [2023Q1, 2023Q2, 2023Q3, 2023Q4]
 snapshots: [10, 20, 40]
-chosen: null  # set from the 2022 run before any 2023 run
+chosen: 10  # lowest mean amortized fit RMSE on 2022 (results/walkforward-full-validation)
 train:  # configs/walkforward_spx.yaml
   context: {wing_max: 0.2, interior_max: 0.9, slice_prob: 0.3, slice_max: 0.5}
   batch_days: 16
