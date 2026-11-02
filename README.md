@@ -12,19 +12,21 @@ The best model on each task, in the SPX validation year (2022) unless a row name
 test years (SPX 2023, synthetic Heston 2022) were first run in Phase 7, with every setting frozen
 beforehand. The later refinements were chosen on the validation years in the same way and frozen
 before being run on the test years once more, and on a fresh synthetic panel. They are quarterly
-refits of the SPX conditional model, a synthetic model trained on more years and a pooled
-robust detector.
+refits of the SPX conditional model, the same model trained on 2010–2021, a synthetic model
+trained on more years and a pooled robust detector. SPX 2016–2017 was added after all of these
+choices and held out from them; the whole comparison was run on it once
+([replication](#replication-on-spx-20162017)).
 
 | task | best model | result |
 |---|---|---|
-| fit a day's chain | eSSVI price mixture `mix4` | 0.121 vp RMSE, 81% of model IVs inside the bid-ask, zero arbitrage |
-| extrapolate the wings | penalized network `pnn` | 0.86 vp (0.38% calendar violations left); best arbitrage-free: `mix4`, 1.31 vp, about even with the conditional model refitted quarterly (1.25 vp; on 2023, `mix4` 0.82 and the refitted model 0.85) |
-| fill missing strikes | `mix4` | 0.155 vp with 90% of interior strikes held out |
-| fill missing maturities | `mix4` | 0.34 vp with 30% of inner maturities held out (conditional model 0.64; SVI 0.65 with calendar arbitrage) |
-| fit fast | conditional model, amortized and refitted quarterly | 0.05 s per day, against about 30 s for `mix4`, at 0.63 vp (SPX 2023 test year: 0.40 vp, `mix4` 0.071) |
+| fit a day's chain | eSSVI price mixture `mix4` | 0.121 vp RMSE, 81% of model IVs inside the bid-ask, zero arbitrage (2016–2017: 0.068 vp, 99%) |
+| extrapolate the wings | penalized network `pnn` | 0.86 vp (0.38% calendar violations left; 2016–2017: 0.32 vp). Best arbitrage-free: no single model. The conditional model trained on 2010–2021 and refitted quarterly is about even with `mix4` on 2022 (1.23 against 1.31 vp) and ahead on 2023 (0.70 against 0.82); on 2016–2017 `mix4` leads (0.35 against 0.55) |
+| fill missing strikes | `mix4` | 0.155 vp with 90% of interior strikes held out (2016–2017: 0.13 vp) |
+| fill missing maturities | `mix4` | 0.34 vp with 30% of inner maturities held out (conditional model 0.64; SVI 0.65 with calendar arbitrage; 2016–2017: `mix4` 0.18) |
+| fit fast | conditional model, amortized, trained on 2010–2021 and refitted quarterly | 0.07 s per day, against about 30 s for `mix4`, at 0.58 vp (SPX 2023 test year: 0.38 vp, `mix4` 0.071) |
 | forecast the surface | none | no model beats the random walk significantly at 1, 5 or 20 days |
 | detect mispricings (synthetic test panels) | conditional model trained on nine years | 0.996 / 0.65 precision / recall on the fresh panel (robust `mix4` 0.95 / 0.46, pooled robust `mix4` 0.96 / 0.54); finds 66% of mispriced segments against 30% and 43%; Heston 2022 alike |
-| trade them (SPX 2023 test year) | none | flagged quotes revert faster (p ≤ 0.003), but next-day execution loses money net of the spread |
+| trade them (SPX 2023 test year) | none | flagged quotes revert faster (p ≤ 0.003), but next-day execution loses money net of the spread (2016–2017: a tenth as many flags, too few to test reversion; both next-day and same-day execution lose money and do no better than placebos) |
 
 On the synthetic Heston panels, whose regime does not change between years, the cross-day
 conditional model wins every held-out task. Trained on nine generator years, it is closest to the
@@ -55,9 +57,13 @@ Requires [uv](https://docs.astral.sh/uv/) and, for the report, [Tectonic](https:
 
 ## Data
 
-Real-data experiments use SPX end-of-day option chains (2018–2023, 16:00 ET snapshots) from
-[OptionsDX](https://www.optionsdx.com/) (free account; data is downloaded manually). Place the
-downloaded `.7z` archives in `data/raw/optionsdx/`, then:
+Real-data experiments use SPX end-of-day option chains (2010–2023, 16:00 ET snapshots; 3,491
+trading days) from [OptionsDX](https://www.optionsdx.com/) (free account; data is downloaded
+manually). The project was built on 2018–2023; 2010–2017 was added later, for a longer training
+history and the replication window. Older chains are thinner and wider: a median 570 quotes in 12.5
+expiries a day in 2010, about 2,400 in 27–31 in 2016–2017 and 6,300 in 37 in 2022, with median
+half-spreads of 0.75, 0.14–0.20 and 0.10 vol points. Place the downloaded `.7z` archives in
+`data/raw/optionsdx/`, then:
 
 ```bash
 make data          # extract, estimate forwards, audit, clean -> data/processed/spx/
@@ -106,7 +112,7 @@ synthetic 2021) under one fixed protocol (`src/volsurf/eval/`):
 
 `make train MODEL=<name>` runs a single model. Results go to `results/<experiment>/` and to a local
 MLflow store (`mlflow.db`); browse runs with `make mlflow`. The 2023 SPX and 2022 synthetic test
-years are held back until models are frozen.
+years are held back until models are frozen, and SPX 2016–2017 is a later, second test window.
 
 ## Arbitrage-penalized network
 
@@ -201,6 +207,8 @@ make gaps         # refit every model with more of each chain held out
 make forecast     # latent VAR(1) forecasts against random walks
 make walk-forward       # quarterly SPX refits scored on 2022 (about an hour of training)
 make walk-forward-test  # the same on 2023 with the chosen epoch count
+make full-history       # the SPX model trained on 2010-2021, refitted quarterly, scored on 2022
+make full-history-test  # the same on 2023 with the chosen epoch count
 make heston-multi       # the synthetic model trained on nine years, scored on 2021
 make heston-multi-test  # the same on Heston 2022 and the fresh panel
 ```
@@ -304,6 +312,37 @@ before 2023 was run. Fit RMSE (vp) on the harness days:
   0.42–0.69 vp.
 - The guarantee carries over: zero calendar and butterfly violations, no failed fits.
 
+**Full history** (`configs/phase6_train_spx_full.yaml`, `configs/walkforward_spx_full.yaml`). With
+2010–2017 added, the same model was retrained on 2010 to September 2021 (2,906 days, early-stopped
+on 2021Q4 as before) and refitted each quarter on every screened day from 2010 (2,970 days for
+2022Q1, 3,407 for 2023Q4). The epoch count was chosen on 2022 by the same rule (0.584 / 0.585 /
+0.595 vp for 10 / 20 / 40 epochs; 10 won) and frozen before 2023 was run. That run is the third
+look at 2023, made because the new refits beat the old ones on 2022, amortized and refined. RMSE
+(vp) on the same harness days:
+
+| model | fit 2022 | fit 2023 (test) | held-out wings 2022 | wings 2023 |
+|---|---|---|---|---|
+| trained from 2018, frozen | 0.80 | 0.61 | 1.86 | 1.44 |
+| trained from 2010, frozen | 0.77 | 0.48 | 1.88 | 1.25 |
+| from 2018, walk-forward (40 epochs) | 0.63 | 0.40 | 1.25 | 0.85 |
+| from 2010, walk-forward (10 epochs) | 0.58 | 0.38 | 1.23 | 0.70 |
+| from 2018, walk-forward, refined | 0.49 | 0.34 | 1.38 | 0.88 |
+| from 2010, walk-forward, refined | 0.48 | 0.32 | 1.40 | 0.78 |
+| `mix4` | 0.12 | 0.071 | 1.31 | 0.82 |
+
+- The longer history lowers the fit error everywhere. Amortized walk-forward error falls by 7% on
+  2022 (better on 38 of 52 days, p < 0.001) and 5% on 2023 (36 of 50, p = 0.001). Refined error
+  falls by 2% on 2022 (not significant, p = 0.25) and 5% on 2023 (p < 0.001). The frozen model
+  gains most on 2023: 22%, better on 47 of 50 days.
+- Held-out wings on 2023 improve by 18% (0.85 to 0.70 vp, better on 49 of 50 days), ahead of
+  `mix4` (0.82 vp; p = 0.009, though better on only 27 of 50 days). On 2022 they are unchanged.
+  Twenty epochs would have done better there (1.12 vp, p < 0.001), but the rule fixed beforehand
+  selects on fit error alone.
+- The 2018-base refits, rescored in both runs, reproduce 0.63 / 0.49 vp on 2022 and 0.40 / 0.34
+  on 2023 exactly.
+- `mix4` still fits each day about five times more closely. The frozen model's 2022 error is still
+  twice its early-stopping error (0.39 vp), so 2022 also lies outside 2010–2021.
+
 **More synthetic training years** (`configs/phase6_train_heston_multi.yaml`). The Heston model
 above trains on a single year, and Phase 7 found its precision collapsing once 2022 reached
 variance levels that year never visited. A second panel from the same generator
@@ -402,7 +441,8 @@ maturity–moneyness bucket, held for the same days.
 
 - The accounting passes its check: trading the true labels at the signal's close makes money net
   of costs (last row).
-- On SPX the signal is real but not tradable at end-of-day prices. Flagged contracts earn more
+- On SPX 2023 the signal is real but not tradable at end-of-day prices (on 2016–2017 the second half
+  replicates and the first does not; see [replication](#replication-on-spx-20162017)). Flagged contracts earn more
   than matched placebos, significantly with same-day execution. But half of the reversion happens
   before a next-day trade, and the spread, paid twice, costs more than what remains: the 2023
   next-day strategy loses $192k, and its edge over the placebo is not significant (p = 0.09).
@@ -468,6 +508,76 @@ Detection at margin 0.5, Heston 2022 / fresh panel (2023; the multi-year model's
 - The backtest keeps the Phase 7 detector, as frozen before these runs, so its rows above are
   unchanged. On SPX the conditional model is still not a detector: even refitted each quarter,
   its 2023 error (0.3–0.5 vp) is several half-spreads.
+
+## Replication on SPX 2016–2017
+
+SPX 2016–2017 was added after every choice above and is a second test window that nothing was tuned
+on. Every model, gap level and detector was run on it once with the settings chosen on 2022,
+committed before any model was scored on it. The conditional models were retrained on 2010 to
+September 2015 (early-stopped on 2015Q4) and refitted before each quarter for 40 epochs on every
+day from 2010, the walk-forward setting chosen on 2022. The harness samples 101 days.
+
+```bash
+make replication             # retrain and refit the conditional model, every model, two gap levels
+make replication-mispricing  # detectors, reversion and backtest
+```
+
+| model | fit RMSE (vp) | within spread | held-out wings (vp) | calendar viol. | butterfly viol. | fit time (s) |
+|---|---|---|---|---|---|---|
+| SVI | 0.128 | 90% | 2.67 | 15.6% | 10.9% | 8.4 |
+| spline | 0.130 | 83% | 2.23 | 7.4% | 0.66% | 0.003 |
+| SSVI | 0.61 | 37% | 1.83 | 0 | 0 | 0.12 |
+| penalized network (`pnn`) | 0.085 | 96% | **0.32** | 0.08% | 0.004% | 194 |
+| eSSVI mixture (`mix4`) | **0.068** | **99%** | 0.35 | 0 | 0 | 32 |
+| conditional, frozen | 0.51 | 34% | 0.75 | 0 | 0 | 0.11 |
+| conditional, frozen, refined | 0.37 | 46% | 0.71 | 0 | 0 | 2.6 |
+| conditional, walk-forward | 0.38 | 43% | 0.55 | 0 | 0 | **0.07** |
+| conditional, walk-forward, refined | 0.29 | 55% | 0.52 | 0 | 0 | 1.6 |
+
+- The rankings of 2022 and 2023 hold. `mix4` fits closest and is arbitrage-free. `pnn` follows, with
+  the best wings, at six times `mix4`'s fit time and with a few violations left. SVI and the spline
+  fit almost as closely but violate calendar arbitrage on 16% and 7% of the widened grid.
+- Every model sits inside the bid-ask more often than in 2022, because the spreads are wider:
+  median half-spreads are 0.14–0.20 vp, against 0.10 in 2022 and 0.07 in 2023.
+- Walk-forward refits cut the conditional model's amortized error by 27% (22% on 2022, 35% on
+  2023). The refreshed model is also the most stable day to day (0.24 vp, `mix4` 0.28, SVI 0.50).
+- Gap filling repeats too. With 90% of interior strikes held out, `mix4` misses the held-out
+  strikes by 0.13 vp, against 0.29 for the refined walk-forward model, 0.52 for SVI and 0.60 for
+  SSVI. With 30% of inner maturities held out, `mix4` misses by 0.18 vp, SVI by 0.26 (calendar
+  violations on 16% of the grid) and the refined walk-forward model by 0.30.
+- One 2023 finding does not replicate. The walk-forward model is not even with `mix4` on the wings
+  here (0.55 against 0.35 vp). Only with 90% of strikes held out are they close: 0.53 vp for the
+  refined model against 0.52.
+
+The mispricing tests (`configs/replication_mispricing.yaml`, the Phase 7 and 7b settings unchanged)
+use all 501 days, with `mix4` fitted on each:
+
+| | trades | gross | costs | net | Sharpe | placebo gross | net minus placebo (p) |
+|---|---|---|---|---|---|---|---|
+| SPX 2016–2017, next day | 364 | +$9k | $130k | **−$121k** | −1.42 | +$7k | −$16k (0.32) |
+| SPX 2016–2017, same day (bound) | 370 | −$15k | $128k | −$143k | −1.34 | −$15k | −$7k (0.63) |
+
+- There is little to flag, because `mix4` sits inside the wider spreads, and margins are in
+  half-spreads, so margin 4 is a two to three times larger deviation in vol points than in 2023. At
+  margin 4 the robust detector flags 0.04% of quotes (2023: 0.44%) and the pooled detector 0.05%
+  (2023: 0.9%); even at a zero margin the robust detector flags 1.4% (2023: 23%). Two years give 364
+  next-day trades, against 2,595 in 2023 alone.
+- The reversion test has no power. Only 5 days have at least five robust flags (pooled 8; 2023: 144
+  and 211). On them,
+  flagged residuals revert slightly faster than unflagged ones at one day (by 0.08, p = 0.07; pooled
+  detector 0.07, p = 0.50), and at 3 and 5 days there are too few days to test. Unflagged
+  residuals revert −0.78 / −0.83 / −0.87 at 1 / 3 / 5 days, against −0.34 / −0.44 / −0.50 in 2023.
+  This is closer to the synthetic panels than to 2023, suggesting that residuals inside the spread
+  are mostly quote noise rather than persistent misfit.
+- The backtest loses money even as a bound. With $1,000 of vega a trade, a round trip costs about
+  two half-spreads times that vega: $357 a trade here, against $136 in 2023. Next-day trades earn $25
+  gross (same-day −$40). Neither
+  timing beats its placebos, and the same-day bound, which made $70k in 2023, loses $143k. Hit rates
+  are 7% and 15%.
+- The tradability half of the 2023 conclusion holds: neither timing beats its placebos or covers
+  the spread. The evidence for a real signal does not replicate. There are too few flags for the
+  reversion test, and there is no same-day edge over placebos (−$7k, p = 0.63, against +$423k,
+  p = 0.002, in 2023), though 370 trades give that comparison little power.
 
 ## Roadmap
 
