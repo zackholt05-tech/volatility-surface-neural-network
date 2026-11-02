@@ -1,4 +1,4 @@
-.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast mispricing-validation mispricing-test detector-tuning heston-multi heston-multi-test walk-forward walk-forward-test phase7b-validation phase7b-test full-history full-history-test replication replication-mispricing train mlflow report clean
+.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast mispricing-validation mispricing-test detector-tuning heston-multi heston-multi-test walk-forward walk-forward-test phase7b-validation phase7b-test full-history full-history-test replication replication-mispricing train dashboard mlflow report clean
 
 CONFIG ?= configs/baselines.yaml
 
@@ -15,11 +15,11 @@ test:  ## Run unit tests
 	uv run pytest
 
 lint:  ## Lint with ruff
-	uv run ruff check src tests scripts
+	uv run ruff check src tests scripts dashboard
 
 format:  ## Format with ruff
-	uv run ruff format src tests scripts
-	uv run ruff check --fix src tests scripts
+	uv run ruff format src tests scripts dashboard
+	uv run ruff check --fix src tests scripts dashboard
 
 synthetic:  ## Generate synthetic surfaces with labelled mispricings
 	$(PY) scripts/make_synthetic.py --config configs/synthetic.yaml
@@ -144,6 +144,9 @@ replication-mispricing:  ## The Phase 7 and 7b detectors, reversion and backtest
 
 train:  ## Evaluate one model from a config: make train MODEL=mlp [CONFIG=...]
 	$(PY) scripts/evaluate_models.py --config $(CONFIG) --models $(MODEL)
+
+dashboard:  ## Surfaces, arbitrage maps and mispricing flags of the fitted panels (see README)
+	uv run streamlit run dashboard/app.py
 
 mlflow:  ## Launch the local MLflow UI
 	uv run mlflow ui --backend-store-uri sqlite:///mlflow.db

@@ -87,7 +87,7 @@ Synthetic surfaces need no external data: `make synthetic`. Both sources share t
 src/volsurf/   pricing, arbitrage, data, models, training, eval, viz
 scripts/       CLI entry points used by the Makefile
 configs/       YAML configs for data, models, and experiments
-dashboard/     Streamlit surface explorer
+dashboard/     Streamlit dashboard: surfaces, arbitrage maps, mispricing flags
 report/        LaTeX technical report
 tests/         unit tests
 ```
@@ -579,6 +579,38 @@ use all 501 days, with `mix4` fitted on each:
   reversion test, and there is no same-day edge over placebos (−$7k, p = 0.63, against +$423k,
   p = 0.002, in 2023), though 370 trades give that comparison little power.
 
+## Dashboard
+
+```bash
+make dashboard   # http://localhost:8501
+```
+
+The sidebar picks a panel, a detector, a flag margin and a day. Each panel opens on its frozen
+detector and margin, on a busy test-year day. There are three pages:
+
+- **Surface**: the day's fitted surface in 3D over the quoted strikes, with the quotes and flags;
+  each detector's fit to the day's quotes; and one expiry's smile against the bid-ask with every
+  detector's IVs (and the true IV on synthetic panels). The surface is a saved `mix4` fit, or the
+  conditional model (the walk-forward checkpoint of the date's quarter), SVI or the spline fitted
+  on the day's quotes.
+- **Arbitrage**: where a surface breaks the butterfly (Durrleman $g < 0$) and calendar conditions,
+  on the evaluation's grids over the quoted or the extended domain. The violation shares are the
+  evaluation's own (`tests/test_viz.py` checks they match). The maps of `mix4` and the conditional
+  model are empty by construction; those of SVI and the spline show where they fail.
+- **Mispricings**: flags per day across the panel, and the day's flags ranked by residual, with
+  each residual 1, 3 and 5 trading days later. Selecting a flag shows its smile and its residual
+  path. On synthetic panels the injected mispricings are listed beside the flags.
+
+The dashboard reads files that are not committed, the per-quote tables and fits under `results/`
+and the checkpoints under `artifacts/conditional/`, and leaves out any panel whose files are
+missing:
+
+| panel | per-quote tables and fits | conditional model |
+|---|---|---|
+| SPX 2022–2023 | `make phase7b-validation phase7b-test` | `make full-history full-history-test` |
+| SPX 2016–2017 | `make replication-mispricing` | `make replication` |
+| Heston 2021–2022, Heston fresh 2023 | `make phase7b-validation phase7b-test` | `make heston-multi` |
+
 ## Roadmap
 
 - [x] Project scaffold
@@ -589,5 +621,5 @@ use all 501 days, with `mix4` fitted on each:
 - [x] Hard-constrained eSSVI surfaces (arbitrage-free by construction)
 - [x] Cross-day conditional surface model
 - [x] Mispricing detection, residual reversion tests, delta-hedged backtest
-- [ ] Streamlit dashboard
+- [x] Streamlit dashboard
 - [ ] Technical report
