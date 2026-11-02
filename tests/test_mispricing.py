@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from volsurf.data.synthetic import SyntheticConfig, generate
 from volsurf.eval.backtest import (
     BacktestConfig,
     Market,
@@ -11,10 +12,13 @@ from volsurf.eval.backtest import (
     stays_quoted,
     trade_pnl,
 )
-from volsurf.eval.dayset import FitData
+from volsurf.eval.dayset import FitData, make_day
 from volsurf.eval.mispricing import (
+    SurfaceState,
     cauchy_spreads,
+    fit_least_squares,
     flag,
+    ls_objective,
     pooled_residuals,
     precision_recall,
     robust_residuals,
@@ -177,3 +181,53 @@ def test_pooled_residuals_stay_within_an_expiry_and_keep_isolated_quotes():
     assert weighted[1] == 3.0 and weighted[5] == 6.0  # a run keeps its level, a point its own
     assert weighted[3] == 1.5  # a quote next to a run is down-weighted with it
     assert robust_residuals(u, data, 0) is u
+
+
+def test_least_squares_keeps_the_start_with_the_lower_objective():
+    quotes, _ = generate(SyntheticConfig(surface="ssvi", n_days=1, seed=7))
+    data = make_day(quotes).fit_data()
+    good, start = fit_least_squares(data)
+    assert start == "cold"
+    # the same surface with every component's ATM variance doubled: a stuck fit
+    bad = SurfaceState(good.knot_T, [(2.0 * th, up, um) for th, up, um in good.knots],
+                       good.weights)  # fmt: skip
+    assert ls_objective(bad, data) > 10 * ls_objective(good, data)
+    best, start = fit_least_squares(data, cold=bad, warm=good)
+    assert start == "warm" and ls_objective(best, data) < ls_objective(bad, data)
+    best, start = fit_least_squares(data, cold=good, warm=bad)
+    assert ls_objective(best, data) <= ls_objective(good, data)
+
+
+def _reverting(n_days=60, n_k=40, market_decay=None, model_noise=0.0, seed=0):
+    """Contracts on a flat 20% surface. Half the strikes carry a mispricing in the market that
+    decays by a factor ``market_decay`` a day, renewed every ten days; the model is the truth
+    plus iid noise of its own."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    shift = np.where(np.arange(n_k) % 2 == 0, 3.0, 0.0) * rng.choice([-1, 1], n_k)
+    for d in range(n_days):
+        mis = shift * (market_decay ** (d % 10) if market_decay else 1.0)  # fresh every 10 days
+        for j in range(n_k):
+            rows.append({"date": pd.Timestamp("2022-01-03") + pd.offsets.BDay(d),
+                         "expiry": pd.Timestamp("2022-12-16"), "strike": 3000.0 + 10 * j,
+                         "option_type": "P", "s": 0.001,
+                         "iv_mid": 0.2 + 0.001 * mis[j] + 1e-6 * rng.normal(),
+                         "iv_model": 0.2 + 0.001 * model_noise * rng.normal()})  # fmt: skip
+    return pd.DataFrame(rows)
+
+
+def test_decomposition_attributes_reversion_to_the_side_that_moved():
+    from volsurf.eval.reversion import decomposed_slopes, summarize_decomposed
+
+    t = _reverting(market_decay=0.5)
+    x = (t["iv_mid"] - t["iv_model"]) / t["s"]
+    out = summarize_decomposed(decomposed_slopes(t, "iv_model", np.abs(x) > 1.0, 1), 1)
+    assert out["market_flagged"] == pytest.approx(-0.5, abs=0.15)
+    assert abs(out["model_flagged"]) < 1e-9
+
+    # the market never moves; the model's own noise reverts and selects large residuals
+    t = _reverting(model_noise=3.0)
+    x = (t["iv_mid"] - t["iv_model"]) / t["s"]
+    out = summarize_decomposed(decomposed_slopes(t, "iv_model", np.abs(x) > 4.0, 1), 1)
+    assert abs(out["market_flagged"]) < 0.1
+    assert out["model_flagged"] > 0.5

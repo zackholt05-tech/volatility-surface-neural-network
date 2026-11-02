@@ -8,6 +8,7 @@ results/<experiment>-<split>/<source>/ (the config's ``experiment``, phase7 by d
 - absorption.csv (synthetic panels): the share of each injected mispricing a detector's surface
   absorbs, by kind, and precision and recall by quarter;
 - reversion.csv: Fama-MacBeth reversion slopes of flagged against unflagged quotes;
+- reversion_parts.csv: those slopes split into the market's move and the model's;
 - backtest.csv (panels with a ``backtest`` entry): the strategy with next-day and same-day
   execution, its matched placebo and the test of their difference; on synthetic panels also the
   true labels traded at the signal's close, a check of the accounting (a perfect detector must make
@@ -37,7 +38,12 @@ from volsurf.eval.backtest import (
     run_signals,
 )
 from volsurf.eval.mispricing import flag, precision_recall, residuals
-from volsurf.eval.reversion import daily_slopes, summarize_slopes
+from volsurf.eval.reversion import (
+    daily_slopes,
+    decomposed_slopes,
+    summarize_decomposed,
+    summarize_slopes,
+)
 
 
 def detection(table: pd.DataFrame, detectors, margins) -> pd.DataFrame:
@@ -87,6 +93,18 @@ def reversion(table: pd.DataFrame, detectors, margin, horizons) -> pd.DataFrame:
         for h in horizons:
             slopes = summarize_slopes(daily_slopes(quotes, r, f, h), h)
             rows.append({"detector": det, "margin": margin, **slopes})
+    return pd.DataFrame(rows)
+
+
+def reversion_parts(table: pd.DataFrame, detectors, margin, horizons) -> pd.DataFrame:
+    """The reversion slopes split into the market's move and the model's (`decomposed_slopes`)."""
+    quotes = table[~table["arb_leg"]].reset_index(drop=True)
+    rows = []
+    for det in detectors:
+        f = flag(residuals(quotes, det)["r"].to_numpy(), margin)
+        for h in horizons:
+            parts = summarize_decomposed(decomposed_slopes(quotes, det, f, h), h)
+            rows.append({"detector": det, "margin": margin, **parts})
     return pd.DataFrame(rows)
 
 
@@ -158,6 +176,9 @@ def main() -> None:
         rev = reversion(table, panel["detectors"], margin, spec["reversion"]["horizons"])
         rev.to_csv(out / "reversion.csv", index=False)
         print(rev.round(3).to_string(index=False))
+        parts = reversion_parts(table, panel["detectors"], margin, spec["reversion"]["horizons"])
+        parts.to_csv(out / "reversion_parts.csv", index=False)
+        print(parts.round(3).to_string(index=False), flush=True)
         if "backtest" in panel:
             bt = backtest(table, panel["detectors"][0], dict(panel["backtest"]))
             bt.to_csv(out / "backtest.csv", index=False)

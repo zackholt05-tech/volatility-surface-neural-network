@@ -97,6 +97,28 @@ def robust_residuals(u: np.ndarray, data: FitData, pool: int) -> np.ndarray:
     return np.maximum(np.abs(u), np.abs(pooled_residuals(u, data.k, data.slice_id, pool)))
 
 
+def ls_objective(state: SurfaceState, data: FitData) -> float:
+    """The least-squares objective of a mix4 surface: mean squared IV error in half-spreads."""
+    return float(np.mean(((state.model().iv(data.k, data.T) - data.iv) / data.s) ** 2))
+
+
+def fit_least_squares(
+    data: FitData, cold: SurfaceState | None = None, warm: SurfaceState | None = None
+) -> tuple[SurfaceState, str]:
+    """The least-squares fit from the default start (or ``cold``, a cached one) and, given the
+    previous day's fit ``warm``, from that fit too; the lower objective wins, the default start
+    on ties. The default start reaches a poor local minimum on some days: on SPX 2017-10-17 it
+    misses a whole expiry by 1.8 vol points (objective 3.56), while the fit started from the
+    previous day's surface matches the quotes (0.06). Returns the fit and which start won."""
+    first = cold or SurfaceState.of(NeuralESSVISurface(MIX4).fit(data))
+    if warm is None:
+        return first, "cold"
+    second = SurfaceState.of(NeuralESSVISurface(MIX4).fit(data, init=warm.model()))
+    if ls_objective(second, data) < ls_objective(first, data):
+        return second, "warm"
+    return first, "cold"
+
+
 def fit_robust(
     data: FitData, cfg: RobustConfig, cold: SurfaceState | None = None
 ) -> list[SurfaceState]:
@@ -126,6 +148,16 @@ def fit_data(quotes: pd.DataFrame, mask: np.ndarray, resid_floor: float = RESID_
     return FitData(q["k"].to_numpy(), T, q["iv_mid"].to_numpy(), s, slice_id, slice_T)
 
 
+def day_data(
+    quotes: pd.DataFrame, resid_floor: float = RESID_FLOOR
+) -> tuple[pd.DataFrame, np.ndarray, FitData]:
+    """A day's quotes sorted by (T, k), its legs of model-free arbitrage, and the quotes the
+    surfaces are fitted on (all but those legs)."""
+    q = quotes.sort_values(["T", "k"]).reset_index(drop=True)
+    arb = arb_legs(q)
+    return q, arb, fit_data(q, ~arb, resid_floor)
+
+
 def score_day(
     quotes: pd.DataFrame,
     cfg: RobustConfig,
@@ -140,9 +172,7 @@ def score_day(
     for each further robust config in ``variants`` (each refitted from the least-squares
     surface), and ``iv_<name>`` of the refined conditional model of each checkpoint."""
     torch.set_num_threads(1)
-    q = quotes.sort_values(["T", "k"]).reset_index(drop=True)
-    arb = arb_legs(q)
-    data = fit_data(q, ~arb, resid_floor)
+    q, arb, data = day_data(quotes, resid_floor)
     start = time.perf_counter()
     states = fit_robust(data, cfg, cold)
     seconds = time.perf_counter() - start

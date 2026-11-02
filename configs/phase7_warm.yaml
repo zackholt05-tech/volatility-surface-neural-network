@@ -1,0 +1,51 @@
+# The Phase 7 and 7b mispricing tests on refitted surfaces. Each day's least-squares mix4 surface is
+# the better, by its own objective, of the default start and a fit started from the previous day's
+# chosen surface (scripts/fit_panel.py --warm-start); the robust refits start from it. The default
+# start reaches poor local minima on some days: the dashboard showed that 92% of the 2016-2017
+# flags fell on four days of October 2017, on which the cached fits miss whole expiries by about
+# 2 vol points while a fit from the previous day's surface matches the quotes.
+# Every other setting is that of configs/phase7.yaml (the traded detector and the backtest) and
+# configs/phase7b.yaml (the pooled detector and the multi-year conditional model). The validation
+# years are rerun first and the backtest selection rule reapplied to them (scripts/backtest_grid.py);
+# the test panels are run after, once: a fourth look at SPX 2023, a third at Heston 2022 and a
+# second at the fresh panel. On the 2022 refits the rule again picks margin 4 and hold 5 (next-day
+# net Sharpe 0.14, against 0.01 on the cached fits), and the Heston 2021 detection table is all but
+# unchanged, so every setting below is that of the original configs.
+#   make warm-validation
+#   make warm-test
+experiment: phase7-warm
+robust: {passes: 2, scale: 1.0, lbfgs_iters: 100, refine_iters: 100}  # Phase 7 (iv_rob)
+variants:
+  seg: {pool: 2, scale: 0.25, passes: 16}  # Phase 7b
+
+detection:
+  margins: [0.0, 0.5, 1.0, 2.0, 4.0, 6.0]
+
+reversion:
+  horizons: [1, 3, 5]
+
+panels:
+  spx:
+    validation: 2022
+    test: 2023
+    detectors: [iv_rob, iv_seg, iv_ls]  # the first is traded
+    backtest:  # configs/phase7.yaml
+      margin: 4.0
+      exit_r: 0.5
+      hold: 5
+      lags: [1, 0]
+      fee: 1.0
+      target_vega: 1000.0
+      max_gap: 3
+      min_dte: 7
+      z_range: [-6.0, 4.0]
+      placebo_draws: 20
+  synthetic:heston:  # the conditional detectors do not use mix4 and are unchanged
+    validation: 2021
+    test: 2022
+    detectors: [iv_cond_multi, iv_cond, iv_seg, iv_rob, iv_ls]
+    margin: 0.5
+  synthetic:heston_fresh:
+    test: 2023
+    detectors: [iv_cond_multi, iv_cond, iv_seg, iv_rob, iv_ls]
+    margin: 0.5

@@ -1,4 +1,4 @@
-.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast mispricing-validation mispricing-test detector-tuning heston-multi heston-multi-test walk-forward walk-forward-test phase7b-validation phase7b-test full-history full-history-test replication replication-mispricing train dashboard mlflow report clean
+.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast mispricing-validation mispricing-test detector-tuning heston-multi heston-multi-test walk-forward walk-forward-test phase7b-validation phase7b-test full-history full-history-test replication replication-mispricing warm-validation warm-test replication-warm train dashboard mlflow report clean
 
 CONFIG ?= configs/baselines.yaml
 
@@ -141,6 +141,32 @@ replication-mispricing:  ## The Phase 7 and 7b detectors, reversion and backtest
 	$(PY) scripts/fit_panel.py --config configs/replication_mispricing.yaml \
 		--out results/replication-fits --source spx --years 2016 2017
 	$(PY) scripts/mispricing_report.py --config configs/replication_mispricing.yaml --split test
+
+WARM := --config configs/phase7_warm.yaml --out results/phase7-warm-fits --warm-start
+HESTON_CKPTS := --checkpoint cond=$(HESTON_CKPT) cond_multi=artifacts/conditional/heston_multi_d8.pt
+
+warm-validation:  ## Phase 7/7b on surfaces refitted with the previous-day start, validation years
+	$(PY) scripts/fit_panel.py $(WARM) $(HESTON_CKPTS) --source synthetic:heston --years 2021 \
+		--seed-cache results/phase7b-fits/synthetic_heston/fits.pkl
+	$(PY) scripts/fit_panel.py $(WARM) --source spx --years 2022 \
+		--seed-cache results/phase7b-fits/spx/fits.pkl
+	$(PY) scripts/mispricing_report.py --config configs/phase7_warm.yaml --split validation
+	$(PY) scripts/backtest_grid.py --config configs/phase7_warm.yaml
+
+warm-test:  ## The same on the test panels, with configs/phase7_warm.yaml frozen
+	$(PY) scripts/fit_panel.py $(WARM) $(HESTON_CKPTS) --source synthetic:heston --years 2022 \
+		--seed-cache results/phase7b-fits/synthetic_heston/fits.pkl
+	$(PY) scripts/fit_panel.py $(WARM) $(HESTON_CKPTS) --source synthetic:heston_fresh \
+		--years 2023 --seed-cache results/phase7b-fits/synthetic_heston_fresh/fits.pkl
+	$(PY) scripts/fit_panel.py $(WARM) --source spx --years 2023 \
+		--seed-cache results/phase7b-fits/spx/fits.pkl
+	$(PY) scripts/mispricing_report.py --config configs/phase7_warm.yaml --split test
+
+replication-warm:  ## The 2016-2017 mispricing tests on surfaces refitted with the previous-day start
+	$(PY) scripts/fit_panel.py --config configs/replication_warm.yaml \
+		--out results/replication-warm-fits --warm-start --source spx --years 2016 2017 \
+		--seed-cache results/replication-fits/spx/fits.pkl
+	$(PY) scripts/mispricing_report.py --config configs/replication_warm.yaml --split test
 
 train:  ## Evaluate one model from a config: make train MODEL=mlp [CONFIG=...]
 	$(PY) scripts/evaluate_models.py --config $(CONFIG) --models $(MODEL)
