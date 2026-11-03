@@ -17,6 +17,7 @@ that won and both objectives are written to ls_starts_<year>.csv.
 from __future__ import annotations
 
 import argparse
+import multiprocessing
 import pickle
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -135,7 +136,9 @@ def main() -> None:
                 (d, days[d], cfg, SurfaceState(*cold) if cold else None, checkpoints, variants)
             )
         tables, seconds = [], []
-        with ProcessPoolExecutor(max_workers=args.workers) as pool:
+        # spawn, as on macOS: forking after the chain's threaded torch fits can hang the workers
+        context = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(max_workers=args.workers, mp_context=context) as pool:
             for date, table, states, sec in pool.map(_job, jobs):
                 tables.append(table)
                 fits[date] = states
