@@ -7,7 +7,14 @@ cd "$(dirname "$0")/.."
 V=volsurf
 
 put() { modal volume put -f "$V" "$1" "$1" > /dev/null && echo "up   $1"; }
-get() { mkdir -p "$(dirname "$1")" && modal volume get --force "$V" "$1" "$(dirname "$1")" > /dev/null && echo "down $1"; }
+# A folder is downloaded beside the repository and copied over its local copy, which keeps the local
+# files the Volume lacks (a forced download in place replaces the whole folder).
+get() {
+  local tmp
+  tmp=$(mktemp -d)
+  modal volume get "$V" "$1" "$tmp" > /dev/null
+  mkdir -p "$1" && cp -R "$tmp/$(basename "$1")/." "$1/" && rm -rf "$tmp" && echo "down $1"
+}
 
 case "${1:-}" in
   up)
