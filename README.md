@@ -15,7 +15,10 @@ before being run on the test years once more, and on a fresh synthetic panel. Th
 refits of the SPX conditional model, the same model trained on 2010–2021, a synthetic model
 trained on more years and a pooled robust detector. SPX 2016–2017 was added after all of these
 choices and held out from them; the whole comparison was run on it once
-([replication](#replication-on-spx-20162017)).
+([replication](#replication-on-spx-20162017)). Last, every mispricing panel was refitted with a start
+from the previous day's surface, which avoids poor local minima of the default `mix4` fit. The rule was
+frozen on the validation years before a fourth look at SPX 2023, a third at Heston 2022 and a
+second at the fresh panel and at 2016–2017 ([refitted panels](#refitted-mispricing-panels)).
 
 | task | best model | result |
 |---|---|---|
@@ -25,8 +28,8 @@ choices and held out from them; the whole comparison was run on it once
 | fill missing maturities | `mix4` | 0.34 vp with 30% of inner maturities held out (conditional model 0.64; SVI 0.65 with calendar arbitrage; 2016–2017: `mix4` 0.18) |
 | fit fast | conditional model, amortized, trained on 2010–2021 and refitted quarterly | 0.07 s per day, against about 30 s for `mix4`, at 0.58 vp (SPX 2023 test year: 0.38 vp, `mix4` 0.071) |
 | forecast the surface | none | no model beats the random walk significantly at 1, 5 or 20 days |
-| detect mispricings (synthetic test panels) | conditional model trained on nine years | 0.996 / 0.65 precision / recall on the fresh panel (robust `mix4` 0.95 / 0.46, pooled robust `mix4` 0.96 / 0.54); finds 66% of mispriced segments against 30% and 43%; Heston 2022 alike |
-| trade them (SPX 2023 test year) | none | flagged quotes revert faster (p ≤ 0.003), but next-day execution loses money net of the spread (2016–2017: a tenth as many flags, too few to test reversion; both next-day and same-day execution lose money and do no better than placebos) |
+| detect mispricings (synthetic test panels) | conditional model trained on nine years | 0.996 / 0.65 precision / recall on the fresh panel (robust `mix4` 0.95 / 0.45, pooled robust `mix4` 0.96 / 0.54); finds 66% of mispriced segments against 29% and 43%; Heston 2022 alike |
+| trade them (SPX 2023 test year) | none | on refitted surfaces, the traded detector's flagged quotes revert no faster than unflagged ones the next day (p = 0.72), and their market prices move towards the model no more than unflagged ones at any horizon; next-day trades net +$292k, but matched placebos net +$233k (excess p = 0.31). On 2016–2017 the refits leave almost nothing to flag (3 trades) |
 
 On the synthetic Heston panels, whose regime does not change between years, the cross-day
 conditional model wins every held-out task. Trained on nine generator years, it is closest to the
@@ -370,7 +373,10 @@ motivated it. Truth error on held-out strikes (vp):
 
 `src/volsurf/eval/mispricing.py`, `reversion.py`, `backtest.py`; every setting is in
 `configs/phase7.yaml`. The settings were chosen on the validation years (SPX 2022, synthetic Heston
-2021) and committed before the test years (SPX 2023, synthetic 2022) were run once.
+2021) and committed before the test years (SPX 2023, synthetic 2022) were run once. The SPX results
+of this section are first looks on cached `mix4` fits, many of which stopped in poor local minima;
+[refitted panels](#refitted-mispricing-panels) reruns them and replaces their conclusions. The
+synthetic results are unchanged by the refits.
 
 ```bash
 make mispricing-validation  # fit every validation day, then detection, reversion, backtest tables
@@ -441,8 +447,8 @@ maturity–moneyness bucket, held for the same days.
 
 - The accounting passes its check: trading the true labels at the signal's close makes money net
   of costs (last row).
-- On SPX 2023 the signal is real but not tradable at end-of-day prices (on 2016–2017 the second half
-  replicates and the first does not; see [replication](#replication-on-spx-20162017)). Flagged contracts earn more
+- On the cached fits of SPX 2023 the signal looked real but not tradable at end-of-day prices
+  (refitted, it is neither; see [refitted panels](#refitted-mispricing-panels)). Flagged contracts earn more
   than matched placebos, significantly with same-day execution. But half of the reversion happens
   before a next-day trade, and the spread, paid twice, costs more than what remains: the 2023
   next-day strategy loses $192k, and its edge over the placebo is not significant (p = 0.09).
@@ -550,34 +556,137 @@ make replication-mispricing  # detectors, reversion and backtest
   refined model against 0.52.
 
 The mispricing tests (`configs/replication_mispricing.yaml`, the Phase 7 and 7b settings unchanged)
-use all 501 days, with `mix4` fitted on each:
+use all 501 days, with `mix4` fitted on each. On the cached fits, almost every flag was a fit failure:
+92% of them fell on four days of October 2017, on which the fits miss whole expiries by about
+2 vol points. Refitted from the previous day's surface
+([refitted panels](#refitted-mispricing-panels)), the panel has next to nothing to flag:
 
 | | trades | gross | costs | net | Sharpe | placebo gross | net minus placebo (p) |
 |---|---|---|---|---|---|---|---|
-| SPX 2016–2017, next day | 364 | +$9k | $130k | **−$121k** | −1.42 | +$7k | −$16k (0.32) |
-| SPX 2016–2017, same day (bound) | 370 | −$15k | $128k | −$143k | −1.34 | −$15k | −$7k (0.63) |
+| SPX 2016–2017, cached fits, next day | 364 | +$9k | $130k | −$121k | −1.42 | +$7k | −$16k (0.32) |
+| SPX 2016–2017, cached fits, same day (bound) | 370 | −$15k | $128k | −$143k | −1.34 | −$15k | −$7k (0.63) |
+| SPX 2016–2017, refits, next day | 3 | +$2 | $2.2k | −$2.2k | −1.03 | +$365 | −$781 (0.45) |
+| SPX 2016–2017, refits, same day (bound) | 4 | −$2.7k | $1.9k | −$4.5k | −1.06 | −$1.6k | −$741 (0.51) |
 
-- There is little to flag, because `mix4` sits inside the wider spreads, and margins are in
-  half-spreads, so margin 4 is a two to three times larger deviation in vol points than in 2023. At
-  margin 4 the robust detector flags 0.04% of quotes (2023: 0.44%) and the pooled detector 0.05%
-  (2023: 0.9%); even at a zero margin the robust detector flags 1.4% (2023: 23%). Two years give 364
-  next-day trades, against 2,595 in 2023 alone.
-- The reversion test has no power. Only 5 days have at least five robust flags (pooled 8; 2023: 144
-  and 211). On them,
-  flagged residuals revert slightly faster than unflagged ones at one day (by 0.08, p = 0.07; pooled
-  detector 0.07, p = 0.50), and at 3 and 5 days there are too few days to test. Unflagged
-  residuals revert −0.78 / −0.83 / −0.87 at 1 / 3 / 5 days, against −0.34 / −0.44 / −0.50 in 2023.
-  This is closer to the synthetic panels than to 2023, suggesting that residuals inside the spread
-  are mostly quote noise rather than persistent misfit.
-- The backtest loses money even as a bound. With $1,000 of vega a trade, a round trip costs about
-  two half-spreads times that vega: $357 a trade here, against $136 in 2023. Next-day trades earn $25
-  gross (same-day −$40). Neither
-  timing beats its placebos, and the same-day bound, which made $70k in 2023, loses $143k. Hit rates
-  are 7% and 15%.
-- The tradability half of the 2023 conclusion holds: neither timing beats its placebos or covers
-  the spread. The evidence for a real signal does not replicate. There are too few flags for the
-  reversion test, and there is no same-day edge over placebos (−$7k, p = 0.63, against +$423k,
-  p = 0.002, in 2023), though 370 trades give that comparison little power.
+- `mix4` sits inside the wider spreads, and margins are in half-spreads, so margin 4 is a two to
+  three times larger deviation in vol points than in 2023. On the refits, the robust detector
+  flags 0.003% of quotes at margin 4 (cached fits 0.04%; 2023 refits 0.30%) and the pooled detector
+  0.006% (0.05%); even at a zero margin the robust detector flags 1.0% (2023: 18%).
+- There is nothing to test reversion on: at most 2 days have five flags of any detector (cached
+  fits: 5 robust, 8 pooled). Unflagged residuals revert −0.79 / −0.85 / −0.88 at 1 / 3 / 5 days,
+  against −0.33 / −0.45 / −0.51 in 2023. This is closer to the synthetic panels than to 2023,
+  suggesting that residuals inside the spread are mostly quote noise rather than persistent misfit.
+- The cached-fit backtest lost money even as a bound, and did no better than its placebos, but it
+  traded the October 2017 fit failures. The 2016–2017 window says only that, with spreads this wide,
+  an arbitrage-free `mix4` fit leaves almost no quote four half-spreads outside the bid-ask.
+
+## Refitted mispricing panels
+
+`configs/phase7_warm.yaml`, `configs/replication_warm.yaml`. The default least-squares `mix4` fit
+sometimes stops in a poor local minimum, and a day fitted that way flags whole expiries. Every
+mispricing panel was refitted (`scripts/fit_panel.py --warm-start`): each day's least-squares
+surface is the better, by its own objective, of the cached fit and a fit started from the previous
+day's chosen surface, so the days run in date order, and the robust refits start from it. The rule
+and every other setting were frozen on the validation years, with a written prediction
+(`results/phase7-warm-validation/notes_before_test.md`, commit 30c766c), before the test panels were
+run once: a fourth look at SPX 2023, a third at Heston 2022 and a second at the fresh panel and at
+SPX 2016–2017.
+
+```bash
+make warm-validation   # SPX 2022 and Heston 2021, then the backtest selection rule reapplied
+make warm-test         # SPX 2023, Heston 2022 and the fresh panel
+make replication-warm  # SPX 2016-2017
+```
+
+**The cached fits failed often.** The chosen fit's objective relative to the cached one, which is
+the fit behind every earlier mispricing result:
+
+| panel | previous-day start won | median ratio | days > 10% lower | > 2× lower | worst day |
+|---|---|---|---|---|---|
+| SPX 2022 (validation) | 154 / 253 | 0.92 | 54 | 0 | 0.47 → 0.25 (Sep 9) |
+| SPX 2023 | 205 / 247 | 0.69 | 172 | 69 | 0.53 → 0.12 (Jul 7) |
+| SPX 2016 | 105 / 251 | 1.00 | 20 | 0 | 0.149 → 0.115 (Oct 27) |
+| SPX 2017 | 144 / 250 | 0.97 | 83 | 12 | 5.51 → 0.048 (Oct 24) |
+| Heston 2021 / 2022 / fresh 2023 | 41 / 48 / 42 of 261 / 234 / 260 | 1.00 | 0 | 0 | |
+
+- On 69 of the 247 SPX 2023 days the cached fit's objective was more than twice what the
+  surface can reach. The synthetic surfaces, drawn from one smooth model, have no such minima.
+- On the validation years the refits change little: the backtest rule again picks margin 4 and
+  hold 5 (next-day net Sharpe 0.14, against 0.01), and the Heston 2021 detection table is all but
+  identical. Every setting of the original configs was kept.
+- The model comparisons of Phases 3–6 fit `mix4` on their own sampled days and were not rerun.
+  Minima there would overstate `mix4`'s errors.
+
+**SPX 2023, robust `mix4` at margin 4.** The refits flag 0.30% of quotes (cached fits 0.44%), with
+at least five flags on 67 days (144).
+
+| flagged minus unflagged reversion slope | 1 day | 3 days | 5 days |
+|---|---|---|---|
+| cached fits (Phase 7) | −0.23 (p = 0.002) | −0.23 (< 0.001) | −0.18 (0.003) |
+| refits | −0.05 (0.72) | −0.24 (0.006) | −0.17 (0.048) |
+
+| | trades | gross | costs | net | Sharpe | placebo gross | net minus placebo (p) |
+|---|---|---|---|---|---|---|---|
+| SPX 2023, next day | 1,482 | +$476k | $184k | **+$292k** | 0.99 | +$459k | +$59k (0.31) |
+| SPX 2023, same day (bound) | 1,586 | +$545k | $176k | +$368k | 1.63 | +$326k | +$320k (0.019) |
+| SPX 2022 (validation; rule reapplied), next day | 3,420 | +$948k | $771k | +$178k | 0.14 | +$478k | +$632k (0.02) |
+
+- The next-day profit is not the signal's. Placebos, matched on day, type, direction and bucket,
+  net +$233k over the same holding days; 68% of trades are sales (59% on the cached fits), so this
+  is likely the variance risk premium of a year in which implied volatility fell. The excess over
+  the placebos is smaller than on the cached fits ($59k against $100k) and not significant.
+- The pooled detector flags 0.65% of quotes (0.94%), and its flags still revert faster than
+  unflagged ones at every horizon (−0.24 / −0.24 / −0.29, p < 0.001, 132 days); least squares
+  alike. The next paragraph shows why that does not make them tradable.
+
+**Which side moves.** The residual is x = (market IV − model IV) / s, with s the origin day's
+half-spread in IV, so its slope on x splits into the slope of the market's change minus that of
+the model's (`reversion.decomposed_slopes`, `reversion_parts.csv`). Only the market part is a
+mispricing that can be traded. This basis differs from the reversion slopes above, which use price
+residuals and each day's spread: on SPX 2022 the robust one-day flagged slope is −0.46 in prices,
+−0.33 in IV and −0.21 in IV with the origin day's spread, so each part is compared with its own
+total. Slopes at 1 / 3 / 5 days, SPX 2023 refits, margin 4:
+
+| | flagged, market (p) | flagged, model | unflagged, market | flagged minus unflagged market (p) |
+|---|---|---|---|---|
+| robust `mix4` | −0.28 (0.17) / −0.53 (0.12) / −0.93 (0.02) | +0.01 / −0.04 / −0.57 | −0.34 / −0.59 / −0.74 | 0.89 / 0.36 / 0.72 |
+| pooled robust `mix4` | −0.19 (0.13) / −0.08 (0.65) / −0.21 (0.36) | +0.14 / +0.40 / +0.41 | −0.33 / −0.70 / −1.10 | 0.39 / < 0.001 / < 0.001 |
+
+A positive model part is the surface moving towards the quote. The prediction written before the
+test run had two parts:
+
+- *"Next-day residual reversion of flags is mostly not the market moving."* Not borne out at one
+  day. Most of the flagged residuals' one-day change is the market's (robust −0.28 of −0.29, pooled
+  −0.19 of −0.33), though neither part is significant. At 3 and 5 days it holds for the pooled
+  detector: its flags revert mostly through the surface moving (market −0.08 of −0.48, −0.21 of
+  −0.62).
+- *"The flagged market-side move is not distinguishable from the unflagged one."* Holds for robust
+  `mix4` at every horizon, and for the pooled detector at one day. At 3 and 5 days the pooled
+  detector's flagged prices move significantly less towards the model than unflagged ones (t =
+  +3.96): distinguishable, but in the direction against a tradable mispricing.
+- The same-day edge over placebos (p = 0.019) and the slope test measure different things.
+  Placebos are contracts with small residuals. A flag sits at least four half-spreads outside the
+  bid-ask, so if it reverts by the same fraction as an unflagged quote, it still moves several times
+  as many dollars. The slope test asks whether it reverts by a larger fraction, and at one day it
+  does not.
+- So on SPX 2023 the flags do not mark prices that return to the arbitrage-free surface faster than
+  other quotes. This was the fourth look at 2023; any further change to the detector has to be
+  chosen on the validation years.
+
+**Synthetic panels.** Heston 2022 and the fresh panel are unchanged. The previous-day start won on
+48 and 42 days but lowered no objective by 10%. Every figure of the Phase 7b detection table is the
+same at two decimals, except robust `mix4` on the fresh panel (recall 0.45 and segment recall
+0.29, against 0.46 and 0.30) and segment absorption (up to 2 points). The multi-year conditional
+model remains the best detector (precision 0.997 / 0.996, recall 0.63 / 0.65).
+
+**Compute.** The validation panels were fitted on macOS arm64, the test panels on Linux x86_64
+containers on Modal (`scripts/modal_run.py`, `scripts/modal_sync.sh`) with the same Python and
+locked dependencies. Six SPX 2022 days fitted both ways agree to rounding, not bit for bit. The
+conditional detectors do not use `mix4`, and their per-day refinement differs between the
+platforms by at most 0.034 vp a quote (4 of 7,480 one-year-model flags on Heston 2022).
+`scripts/fit_panel.py` saves each day's fits as they finish, so an interrupted run, such as a
+preempted container, resumes where it stopped. A run killed during the date-ordered fits and again
+during the robust refits, then resumed, reproduces the uninterrupted run's tables exactly.
 
 ## Dashboard
 
@@ -601,15 +710,15 @@ detector and margin, on a busy test-year day. There are three pages:
   each residual 1, 3 and 5 trading days later. Selecting a flag shows its smile and its residual
   path. On synthetic panels the injected mispricings are listed beside the flags.
 
-The dashboard reads files that are not committed, the per-quote tables and fits under `results/`
-and the checkpoints under `artifacts/conditional/`, and leaves out any panel whose files are
-missing:
+The dashboard reads files that are not committed, the refitted per-quote tables and fits under
+`results/` and the checkpoints under `artifacts/conditional/`, and leaves out any panel whose files
+are missing. The refits start from the cached fits, so those targets run first:
 
 | panel | per-quote tables and fits | conditional model |
 |---|---|---|
-| SPX 2022–2023 | `make phase7b-validation phase7b-test` | `make full-history full-history-test` |
-| SPX 2016–2017 | `make replication-mispricing` | `make replication` |
-| Heston 2021–2022, Heston fresh 2023 | `make conditional heston-multi`, then `make phase7b-validation phase7b-test` | `make heston-multi` |
+| SPX 2022–2023 | `make phase7b-validation phase7b-test`, then `make warm-validation warm-test` | `make full-history full-history-test` |
+| SPX 2016–2017 | `make replication-mispricing replication-warm` | `make replication` |
+| Heston 2021–2022, Heston fresh 2023 | `make conditional heston-multi`, then `make phase7b-validation phase7b-test`, then `make warm-validation warm-test` | `make heston-multi` |
 
 ## Roadmap
 
