@@ -1,7 +1,9 @@
 """Saved panels as the dashboard reads them: per-quote tables, fitted surfaces, residuals, flags.
 
 A panel is a run of consecutive trading days fitted by scripts/fit_panel.py: one per-quote table a
-year (market quote and every detector's model IV) and the cached `mix4` fits. A panel's years are
+year (market quote and every detector's model IV) and the cached `mix4` fits. The panels are the
+refits with the previous-day start (configs/phase7_warm.yaml), whose least-squares surfaces avoid
+the default start's poor local minima. A panel's years are
 loaded together, so a residual can be followed into the next year; panels are never joined to
 each other. Flags use the rule and frozen margins of the mispricing reports.
 """
@@ -51,22 +53,23 @@ class PanelSpec:
 
 PANELS = [
     PanelSpec(
-        "SPX 2022–2023", "results/phase7b-fits/spx", (2022, 2023), "configs/phase7.yaml", "spx",
+        "SPX 2022–2023", "results/phase7-warm-fits/spx", (2022, 2023), "configs/phase7_warm.yaml",
+        "spx",
         "artifacts/conditional/walkforward/spx_full_e10_{quarter}.pt", (2023,),
     ),
     PanelSpec(
-        "SPX 2016–2017", "results/replication-fits/spx", (2016, 2017),
-        "configs/replication_mispricing.yaml", "spx",
+        "SPX 2016–2017", "results/replication-warm-fits/spx", (2016, 2017),
+        "configs/replication_warm.yaml", "spx",
         "artifacts/conditional/walkforward/spx_rep_e40_{quarter}.pt", (2016, 2017),
     ),
     PanelSpec(
-        "Heston 2021–2022 (synthetic)", "results/phase7b-fits/synthetic_heston", (2021, 2022),
-        "configs/phase7b.yaml", "synthetic:heston", "artifacts/conditional/heston_multi_d8.pt",
+        "Heston 2021–2022 (synthetic)", "results/phase7-warm-fits/synthetic_heston", (2021, 2022),
+        "configs/phase7_warm.yaml", "synthetic:heston", "artifacts/conditional/heston_multi_d8.pt",
         (2022,),
     ),
     PanelSpec(
-        "Heston fresh 2023 (synthetic)", "results/phase7b-fits/synthetic_heston_fresh", (2023,),
-        "configs/phase7b.yaml", "synthetic:heston_fresh",
+        "Heston fresh 2023 (synthetic)", "results/phase7-warm-fits/synthetic_heston_fresh", (2023,),
+        "configs/phase7_warm.yaml", "synthetic:heston_fresh",
         "artifacts/conditional/heston_multi_d8.pt", (2023,),
     ),
 ]  # fmt: skip
