@@ -12,8 +12,14 @@ put() { modal volume put -f "$V" "$1" "$1" > /dev/null && echo "up   $1"; }
 get() {
   local tmp
   tmp=$(mktemp -d)
-  modal volume get "$V" "$1" "$tmp" > /dev/null
-  mkdir -p "$1" && cp -R "$tmp/$(basename "$1")/." "$1/" && rm -rf "$tmp" && echo "down $1"
+  if ! { modal volume get "$V" "$1" "$tmp" > /dev/null && mkdir -p "$1" \
+         && cp -R "$tmp/$(basename "$1")/." "$1/"; }; then
+    rm -rf "$tmp"
+    echo "could not download $1" >&2
+    return 1
+  fi
+  rm -rf "$tmp"
+  echo "down $1"
 }
 
 case "${1:-}" in

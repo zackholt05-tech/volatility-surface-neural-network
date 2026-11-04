@@ -173,7 +173,10 @@ def main() -> None:
                 _save(_part(parts, date), (table, states, sec))
         tables, seconds = [], []
         for d in dates:
-            table, fits[d], sec = _load(_part(parts, d))
+            part = _load(_part(parts, d))
+            if part is None:
+                raise FileNotFoundError(f"{_part(parts, d)}: no refit was saved for this day")
+            table, fits[d], sec = part
             tables.append(table)
             seconds.append(sec)
         _save(cache_path, fits)
