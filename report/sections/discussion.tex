@@ -4,9 +4,9 @@
 \begin{itemize}
   \item \textbf{Test windows were reused.} SPX 2023 was run four times, Heston 2022 three times, and
   the fresh Heston panel and SPX 2016--2017 twice each (\cref{tab:windows}). Each later run was frozen
-  on the validation years first, and the last SPX run was preceded by a written prediction
-  (\texttt{results/phase7-warm-validation/notes\_before\_test.md}, commit \texttt{30c766c}), but a
-  finding on a test window chose which question the next run asked. Any further change to the
+  on the validation years first, and the last SPX run was preceded by a prediction written before
+  its test panels were fitted (\cref{app:prediction}; its configurations were committed as
+  \texttt{30c766c}), but a finding on a test window chose which question the next run asked. Any further change to the
   detector has to be chosen on the validation years. SPX 2016--2017 is the only window on which the
   surface comparison was run once, and it reproduces the 2022 and 2023 rankings.
   \item \textbf{The validation backtest is biased upward.} Its row is the best of 12 cells (margin
@@ -17,8 +17,8 @@
   is reachable.
   \item \textbf{The surface comparisons were not refitted.} \Cref{sec:surfaces} fits \mixfour{} on its
   own sampled days from the default start, before the local minima of \cref{sec:refits} were found.
-  Minima there can only overstate the mixture's errors, so its lead in fit is, if anything,
-  understated.
+  A poor minimum raises a day's fit error, so the mixture's lead in fit is, if anything,
+  understated; its held-out and wing errors could move either way.
   \item \textbf{Sufficient conditions cost extrapolation.} The eSSVI conditions are sufficient
   rather than necessary, and they bind at the fitted knots on SPX. Arbitrage-free wings closer to the
   penalized network's would need a richer feasible family.

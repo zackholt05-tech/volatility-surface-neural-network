@@ -44,8 +44,8 @@ days) with models that are free of static arbitrage by construction or through p
 whether quotes far from the fitted surfaces are tradable mispricings. The best surface model,
 \mixfour, mixes four extended SSVI surfaces in forward-normalized price space and is arbitrage-free
 for every parameter vector. It fits the 2022 validation year to \mixFitVal\vp{} with no calendar or
-butterfly violations and stays the closest fit on the 2023 test year (\mixFitTest\vp) and on a
-2016--2017 replication window (\mixFitRep\vp); a penalized network extrapolates the wings better
+butterfly violations, and it stays the closest fit on the 2023 test year among the models scored
+there (\mixFitTest\vp) and on a 2016--2017 replication window (\mixFitRep\vp); a penalized network extrapolates the wings better
 (\pnnWingVal{} against \mixWingVal\vp) but keeps some violations. A cross-day encoder--decoder that
 decodes every latent to an arbitrage-free surface wins on stationary synthetic Heston panels,
 including mispricing detection (precision \multiPrecFresh, recall \multiRecFresh), but on SPX it is

@@ -24,8 +24,8 @@ larger deviation in vol points in the older windows.
   \centering
   \includegraphics[width=\linewidth]{data.pdf}
   \caption{SPX chains after cleaning: monthly medians of quotes per day (log scale) and of the
-  half-spread in implied vol (vol points, vp). Shading marks the evaluation windows; the conditional
-  models train on the unshaded years (\cref{tab:windows}).}
+  half-spread in implied vol (vol points, vp). Shading marks the evaluation windows; each conditional
+  model trains only on days before the window it is scored on (\cref{tab:windows}).}
   \label{fig:data}
 \end{figure}
 

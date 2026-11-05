@@ -32,7 +32,7 @@ $d_2/\sqrt w=-k/w-1/2$ and collecting terms,
   =2\,\partial_w c_{\text{B}}\;g(k),
 \]
 with $g$ as in \cref{eq:conditions}. Hence $q(K)=\phi\bigl(d_2(k)\bigr)\,g(k)/\bigl(K\sqrt{w(k)}\bigr)$,
-which is nonnegative exactly where $g$ is~\citep[Lemma 2.2]{gatheral2014}.
+which is nonnegative exactly where $g$ is~\citep{gatheral2014}.
 
 \paragraph{Wings.} For any arbitrage-free smile, $\limsup_{|k|\to\infty}w(k)/|k|\le2$~\citep{lee2004}.
 The penalized network enforces it as a bound on the slope of $w$ at the outermost collocation
@@ -177,3 +177,22 @@ Sharpe ratios are the mean of daily net PnL over its standard deviation, times $
   \label{tab:forecast}
   \input{tables/forecast}
 \end{table}
+
+\section{The prediction written before the last test run}
+\label{app:prediction}
+
+The rule of \cref{sec:refits} was frozen on the validation years and its configurations committed
+(\texttt{30c766c}) on November 2, 2026, before any test panel was refitted. The validation notes
+written then, which are kept with the results rather than in the repository, ended with this
+prediction for the test run, quoted verbatim:
+
+\begin{quote}
+\small\ttfamily\raggedright
+PREDICTION for test: next-day residual "reversion" of flags is mostly not the market moving;
+flagged market-side move not distinguishable from unflagged.
+\end{quote}
+
+\noindent The same notes recorded the validation results that motivated it: on the SPX 2022 refits
+the robust detector's flags still reverted faster than unflagged ones at one day in price residuals
+(difference $-0.27$), but their market part was small and not significant ($-0.10$, $p=0.62$), and
+the flagged market move was not distinguishable from the unflagged one ($p=0.69$).

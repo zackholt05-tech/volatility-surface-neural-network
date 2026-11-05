@@ -587,9 +587,9 @@ sometimes stops in a poor local minimum, and a day fitted that way flags whole e
 mispricing panel was refitted (`scripts/fit_panel.py --warm-start`): each day's least-squares
 surface is the better, by its own objective, of the cached fit and a fit started from the previous
 day's chosen surface, so the days run in date order, and the robust refits start from it. The rule
-and every other setting were frozen on the validation years, with a written prediction
-(`results/phase7-warm-validation/notes_before_test.md`, commit 30c766c), before the test panels were
-run once: a fourth look at SPX 2023, a third at Heston 2022 and a second at the fresh panel and at
+and every other setting were frozen on the validation years, with a prediction written beforehand
+(quoted in the report's appendix; the configs were committed as 30c766c), before the test panels
+were run once: a fourth look at SPX 2023, a third at Heston 2022 and a second at the fresh panel and at
 SPX 2016–2017.
 
 ```bash
