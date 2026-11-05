@@ -165,6 +165,14 @@ def write_tabular(
     write_text(path, "\n".join(lines))
 
 
+def read(reader, path, **kwargs):
+    """``reader(path)``, stopping with the path named if the file is unreadable or corrupt."""
+    try:
+        return reader(path, **kwargs)
+    except Exception as error:  # parsers raise many types on a corrupt file
+        raise SystemExit(f"could not read {path}: {error}") from error
+
+
 def write_text(path: Path, text: str) -> None:
     try:
         path.write_text(text)
@@ -183,7 +191,7 @@ def save(fig, path: Path) -> None:
 
 
 def summary(experiment: str, source: str = "spx") -> pd.DataFrame:
-    return pd.read_csv(R / experiment / source / "summary.csv", index_col="model")
+    return read(pd.read_csv, R / experiment / source / "summary.csv", index_col="model")
 
 
 def plain_log(axis, ticks) -> None:
@@ -198,7 +206,7 @@ def plain_log(axis, ticks) -> None:
 
 def fig_data(out: Path) -> dict:
     days = pd.concat(
-        pd.read_parquet(p) for p in sorted(glob.glob("data/processed/spx/days/*.parquet"))
+        read(pd.read_parquet, p) for p in sorted(glob.glob("data/processed/spx/days/*.parquet"))
     )
     days["date"] = pd.to_datetime(days["date"])
     monthly = days.set_index("date").resample("MS").median(numeric_only=True)
@@ -415,11 +423,11 @@ def fig_tradeoff(out: Path) -> None:
 
 
 def fig_regime(out: Path) -> dict:
-    frozen = pd.read_csv(R / "phase6-shift/spx/quarterly.csv")
+    frozen = read(pd.read_csv, R / "phase6-shift/spx/quarterly.csv")
     wf = pd.concat(
         [
-            pd.read_csv(R / "walkforward-shift/spx/quarterly.csv"),
-            pd.read_csv(R / "walkforward-shift/spx-test/quarterly.csv"),
+            read(pd.read_csv, R / "walkforward-shift/spx/quarterly.csv"),
+            read(pd.read_csv, R / "walkforward-shift/spx-test/quarterly.csv"),
         ]
     )
     quarters = list(dict.fromkeys(list(frozen["quarter"]) + list(wf["quarter"])))
@@ -561,9 +569,9 @@ def tab_heston(out: Path) -> dict:
 def tab_forecast(out: Path) -> dict:
     rows, nums = [], {}
     for source, name in [("spx", "SPX 2022"), ("synthetic_heston", "Heston 2021")]:
-        s = pd.read_csv(R / "phase6-forecast" / source / "summary.csv")
+        s = read(pd.read_csv, R / "phase6-forecast" / source / "summary.csv")
         s = s.pivot(index="h", columns="model", values="rmse_vp")
-        t = pd.read_csv(R / "phase6-forecast" / source / "tests.csv")
+        t = read(pd.read_csv, R / "phase6-forecast" / source / "tests.csv")
         t = t.pivot(index="h", columns="baseline", values="p_value")
         for h in s.index:
             best = min(["var1", "latent_rw", "mix4_rw"], key=lambda c, h=h: s.loc[h, c])
@@ -612,8 +620,8 @@ DETECTORS = [
 
 def tab_detection(out: Path) -> dict:
     panels = ["synthetic_heston", "synthetic_heston_fresh"]
-    det = {p: pd.read_csv(R / "phase7-warm-test" / p / "detection.csv") for p in panels}
-    ab = {p: pd.read_csv(R / "phase7-warm-test" / p / "absorption.csv") for p in panels}
+    det = {p: read(pd.read_csv, R / "phase7-warm-test" / p / "detection.csv") for p in panels}
+    ab = {p: read(pd.read_csv, R / "phase7-warm-test" / p / "absorption.csv") for p in panels}
     det = {p: d[d["margin"] == 0.5].set_index("detector") for p, d in det.items()}
     ab = {p: a[a["quarter"] == "all"].set_index("detector") for p, a in ab.items()}
     cols = [
@@ -656,7 +664,7 @@ def tab_detection(out: Path) -> dict:
 
 
 def fig_detection(out: Path) -> None:
-    det = pd.read_csv(R / "phase7-warm-test/synthetic_heston_fresh/detection.csv")
+    det = read(pd.read_csv, R / "phase7-warm-test/synthetic_heston_fresh/detection.csv")
     style = {
         "iv_ls": (GREY, "s", ":", "least-squares mix4"),
         "iv_rob": (BLUE, "^", "--", "robust mix4"),
@@ -679,7 +687,7 @@ def fig_detection(out: Path) -> None:
 
 
 def ls_starts(path: Path) -> pd.DataFrame:
-    s = pd.read_csv(path, parse_dates=["date"])
+    s = read(pd.read_csv, path, parse_dates=["date"])
     s["ratio"] = s["objective"] / s["cold_objective"]
     return s
 
@@ -742,8 +750,8 @@ def refit_day(starts: Path, cached: Path, refit: Path) -> tuple[pd.Timestamp, pd
     and refitted least-squares IVs and squared cached residual ``e`` in IV half-spreads."""
     day = ls_starts(starts).sort_values("ratio")["date"].iloc[0]
     keys = ["date", "expiry", "strike", "option_type"]
-    c = pd.read_parquet(cached, filters=[("date", "==", day)])
-    w = pd.read_parquet(refit, columns=[*keys, "iv_ls"], filters=[("date", "==", day)])
+    c = read(pd.read_parquet, cached, filters=[("date", "==", day)])
+    w = read(pd.read_parquet, refit, columns=[*keys, "iv_ls"], filters=[("date", "==", day)])
     d = c.merge(w, on=keys, suffixes=("_cached", ""))
     d["e"] = ((d["iv_mid"] - d["iv_ls_cached"]) / d["s"]) ** 2
     return day, d
@@ -830,9 +838,9 @@ def fig_refit(out: Path) -> None:
 
 
 def tab_reversion(out: Path) -> dict:
-    cached = pd.read_csv(R / "phase7-test/spx/reversion.csv")
-    refit = pd.read_csv(R / "phase7-warm-test/spx/reversion.csv")
-    parts = pd.read_csv(R / "phase7-warm-test/spx/reversion_parts.csv")
+    cached = read(pd.read_csv, R / "phase7-test/spx/reversion.csv")
+    refit = read(pd.read_csv, R / "phase7-warm-test/spx/reversion.csv")
+    parts = read(pd.read_csv, R / "phase7-warm-test/spx/reversion_parts.csv")
 
     def pick(t, det):
         return t[(t["detector"] == det) & (t["margin"] == 4.0)].set_index("h")
@@ -897,7 +905,7 @@ def tab_reversion(out: Path) -> dict:
 
 def tab_backtest(out: Path) -> dict:
     def runs(experiment, source="spx"):
-        return pd.read_csv(R / experiment / source / "backtest.csv").set_index("run")
+        return read(pd.read_csv, R / experiment / source / "backtest.csv").set_index("run")
 
     warm, cached = runs("phase7-warm-test"), runs("phase7-test")
     rows_spec = [
