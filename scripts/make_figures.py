@@ -782,8 +782,8 @@ def fig_refit(out: Path) -> None:
     top[0].set_title("(a) SPX 2022 (grey) and 2023 (blue)")
     top[1].set_title("(b) SPX 2016 (grey) and 2017 (blue)")
 
-    # (c) the SPX day whose objective fell most, its expiry with the largest cached-fit error,
-    # in implied vol; (d, e) the worst 2023 day, its two such expiries, in IV half-spreads
+    # (c) the SPX day whose objective fell most, its expiry with the largest cached-fit error;
+    # (d, e) the worst 2023 day, its two such expiries. Residuals only: no quote levels are drawn.
     for j, (starts, cached_path, refit_path, n, letter) in enumerate(
         [
             (STARTS[3][1], "replication-fits/spx/2017", "replication-warm-fits/spx/2017", 1, "c"),
@@ -798,42 +798,15 @@ def fig_refit(out: Path) -> None:
             title = f"({chr(ord(letter) + i)}) {day:%Y-%m-%d}, {q['dte'].iloc[0]:.0f}-day expiry"
             ax.set_title(title)
             ax.set_xlabel("log-moneyness $k$")
+            ax.axhspan(-1, 1, color=GREY, alpha=0.2, lw=0, label="inside the spread")
+            cached = (q["iv_mid"] - q["iv_ls_cached"]) / q["s"]
+            ax.plot(q["k"], cached, "x", ms=2.5, mew=0.7, color=RED, label="cached fit")
+            ax.plot(
+                q["k"], (q["iv_mid"] - q["iv_ls"]) / q["s"], ".", ms=3, color=BLUE, label="refit"
+            )
             if j == 0:
-                ax.vlines(
-                    q["k"],
-                    100 * q["iv_bid"],
-                    100 * q["iv_ask"],
-                    color=BLACK,
-                    lw=0.8,
-                    label="bid-ask",
-                )
-                ax.plot(q["k"], 100 * q["iv_ls_cached"], "--", color=RED, label="cached fit")
-                ax.plot(q["k"], 100 * q["iv_ls"], "-", color=BLUE, label="refit")
-                ax.set_ylabel("implied vol (%)")
-                ax.legend(loc="upper right")
-            else:
-                ax.axhspan(-1, 1, color=GREY, alpha=0.2, lw=0, label="inside the spread")
-                ax.plot(
-                    q["k"],
-                    (q["iv_mid"] - q["iv_ls_cached"]) / q["s"],
-                    "x",
-                    ms=2.5,
-                    mew=0.7,
-                    color=RED,
-                    label="cached fit",
-                )
-                ax.plot(
-                    q["k"],
-                    (q["iv_mid"] - q["iv_ls"]) / q["s"],
-                    ".",
-                    ms=3,
-                    color=BLUE,
-                    label="refit",
-                )
-                if i == 0:
-                    ax.set_ylabel("residual (IV half-spreads)")
-                else:
-                    ax.legend(loc="lower left", markerscale=2)
+                ax.set_ylabel("residual (IV half-spreads)")
+                ax.legend(loc="upper left", markerscale=2)
     save(fig, out / "refit.pdf")
 
 

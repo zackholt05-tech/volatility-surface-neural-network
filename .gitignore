@@ -20,6 +20,7 @@ results/
 
 # Report build outputs
 report/*.pdf
+!report/main.pdf
 report/*.aux
 report/*.log
 report/*.out

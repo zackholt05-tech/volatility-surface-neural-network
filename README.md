@@ -5,6 +5,7 @@ variance $w(k, T)$ from end-of-day option chains. Static no-arbitrage conditions
 butterfly, wing asymptotics) are either penalized in the loss or guaranteed by construction. The
 resulting arbitrage-free surface is used to flag candidate mispricings across strikes and
 maturities, which are then validated statistically and in a cost-aware, delta-hedged backtest.
+The full write-up is the technical report, [report/main.pdf](report/main.pdf).
 
 ## Results at a glance
 
@@ -694,6 +695,8 @@ during the robust refits, then resumed, reproduces the uninterrupted run's table
 make figures   # report/figures/*.pdf, report/tables/*.tex and the numbers the text quotes
 make report    # report/main.pdf (Tectonic)
 ```
+
+The compiled report is committed as [report/main.pdf](report/main.pdf).
 
 The technical report (`report/main.tex`) covers the data, models, surface results and mispricing tests
 above, with derivations in its appendix. `scripts/make_figures.py` reads only the saved results under
