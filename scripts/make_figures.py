@@ -976,10 +976,74 @@ def write_numbers(path: Path, numbers: dict) -> None:
     path.write_text("\n".join(lines) + "\n")
 
 
+def _inputs() -> dict[str, list[Path]]:
+    """The files read here, by the Makefile target that writes them."""
+    spx, heston, fresh = "spx", "synthetic_heston", "synthetic_heston_fresh"
+    both = (spx, heston)
+    summaries = {
+        "constrained": [("phase5-comparison", spx)],
+        "cross-day": [("phase6-comparison", s) for s in both],
+        "gaps": [(f"phase6-gap-{g}", s) for g in ("0.5", "0.75", "0.9", "slices") for s in both],
+        "walk-forward-test": [("walkforward-test", spx)],
+        "full-history-test": [("walkforward-full-test", spx)],
+        "replication": [("replication-test", spx)],
+        "heston-multi": [("heston-multi-validation", heston)],
+        "heston-multi-test": [("heston-multi-test", s) for s in (heston, fresh)],
+    }
+    files = {t: [R / e / s / "summary.csv" for e, s in v] for t, v in summaries.items()}
+    files["data"] = [Path("data/processed/spx/days")]
+    files["cross-day"].append(R / "phase6-shift/spx/quarterly.csv")
+    files["walk-forward"] = [R / "walkforward-shift/spx/quarterly.csv"]
+    files["walk-forward-test"].append(R / "walkforward-shift/spx-test/quarterly.csv")
+    files["forecast"] = [
+        R / "phase6-forecast" / s / f for s in both for f in ("summary.csv", "tests.csv")
+    ]
+    files["mispricing-test"] = [
+        R / "phase7-test/spx/reversion.csv",
+        R / "phase7-test/spx/backtest.csv",
+        R / "phase7-test/synthetic_heston/backtest.csv",
+    ]
+    files["phase7b-test"] = [R / "phase7b-fits/spx/2023.parquet"]
+    files["warm-validation"] = [
+        R / "phase7-warm-validation/spx/backtest.csv",
+        R / "phase7-warm-fits/spx/ls_starts_2022.csv",
+        R / "phase7-warm-fits/synthetic_heston/ls_starts_2021.csv",
+    ]
+    warm = R / "phase7-warm-test"
+    files["warm-test"] = [
+        *(warm / s / f for s in (heston, fresh) for f in ("detection.csv", "absorption.csv")),
+        *(warm / spx / f for f in ("reversion.csv", "reversion_parts.csv", "backtest.csv")),
+        R / "phase7-warm-fits/spx/ls_starts_2023.csv",
+        R / "phase7-warm-fits/spx/2023.parquet",
+        R / "phase7-warm-fits/synthetic_heston/ls_starts_2022.csv",
+        R / "phase7-warm-fits/synthetic_heston_fresh/ls_starts_2023.csv",
+    ]
+    files["replication-mispricing"] = [R / "replication-fits/spx/2017.parquet"]
+    files["replication-warm"] = [
+        R / "replication-warm-test/spx/backtest.csv",
+        R / "replication-warm-fits/spx/2017.parquet",
+        *(R / f"replication-warm-fits/spx/ls_starts_{y}.csv" for y in (2016, 2017)),
+    ]
+    return files
+
+
+def check_inputs() -> None:
+    """Stop before writing anything if an input is missing, naming the target that writes it."""
+    missing = [
+        f"  {path}  (make {target})"
+        for target, paths in _inputs().items()
+        for path in paths
+        if not (any(path.glob("*.parquet")) if path.is_dir() else path.exists())
+    ]
+    if missing:
+        raise SystemExit("missing inputs; run the targets named:\n" + "\n".join(missing))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="report")
     args = parser.parse_args()
+    check_inputs()
     figures, tables = Path(args.out) / "figures", Path(args.out) / "tables"
     figures.mkdir(parents=True, exist_ok=True)
     tables.mkdir(parents=True, exist_ok=True)
