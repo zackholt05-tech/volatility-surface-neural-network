@@ -1,0 +1,25 @@
+\begin{tabular}{lrrrrrrr}
+\toprule
+& \multicolumn{4}{c}{quotes (RMSE in vp)} & \multicolumn{2}{c}{violations} & \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-7}
+model & fit & in spread & strikes & wings & calendar & butterfly & s/day \\
+\midrule
+\multicolumn{8}{l}{\emph{SPX 2023, test year (50 days)}} \\
+eSSVI mixture (\texttt{mix4}) & $\mathbf{0.071}$ & \textbf{80\%} & $\mathbf{0.076}$ & $0.82$ & 0 & 0 & $26$ \\
+conditional, 2018--2021, frozen & $0.610$ & 13\% & $0.611$ & $1.44$ & 0 & 0 & $0.05$ \\
+conditional, 2018--2021, walk-forward & $0.397$ & 20\% & $0.397$ & $0.85$ & 0 & 0 & $0.05$ \\
+conditional, 2010--2021, frozen & $0.476$ & 17\% & $0.478$ & $1.25$ & 0 & 0 & $0.08$ \\
+conditional, 2010--2021, walk-forward & $0.376$ & 19\% & $0.377$ & $\mathbf{0.70}$ & 0 & 0 & $0.08$ \\
+\quad the same, refined & $0.323$ & 25\% & $0.324$ & $0.78$ & 0 & 0 & $1.90$ \\
+\midrule
+\multicolumn{8}{l}{\emph{SPX 2016--2017, replication (101 days)}} \\
+SSVI & $0.614$ & 37\% & $0.622$ & $1.83$ & 0 & 0 & $0.12$ \\
+SVI (per slice) & $0.128$ & 90\% & $0.138$ & $2.67$ & 15.64\% & 10.92\% & $8.39$ \\
+smoothing spline & $0.130$ & 83\% & $0.147$ & $2.23$ & 7.43\% & 0.66\% & $<0.01$ \\
+penalized network (\texttt{pnn}) & $0.085$ & 96\% & $0.086$ & $\mathbf{0.32}$ & 0.08\% & 0.00\% & $194$ \\
+eSSVI mixture (\texttt{mix4}) & $\mathbf{0.068}$ & \textbf{99\%} & $\mathbf{0.071}$ & $0.35$ & 0 & 0 & $32$ \\
+conditional, 2010--2015, frozen & $0.512$ & 34\% & $0.507$ & $0.75$ & 0 & 0 & $0.11$ \\
+conditional, 2010--2015, walk-forward & $0.375$ & 43\% & $0.373$ & $0.55$ & 0 & 0 & $0.07$ \\
+\quad the same, refined & $0.289$ & 55\% & $0.288$ & $0.52$ & 0 & 0 & $1.56$ \\
+\bottomrule
+\end{tabular}

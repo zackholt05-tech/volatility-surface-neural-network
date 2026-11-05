@@ -1,4 +1,4 @@
-.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast mispricing-validation mispricing-test detector-tuning heston-multi heston-multi-test walk-forward walk-forward-test phase7b-validation phase7b-test full-history full-history-test replication replication-mispricing warm-validation warm-test replication-warm train dashboard mlflow report clean
+.PHONY: help setup test lint format synthetic data diagnostics baselines penalized constrained conditional cross-day gaps forecast mispricing-validation mispricing-test detector-tuning heston-multi heston-multi-test walk-forward walk-forward-test phase7b-validation phase7b-test full-history full-history-test replication replication-mispricing warm-validation warm-test replication-warm train dashboard mlflow figures report clean
 
 CONFIG ?= configs/baselines.yaml
 
@@ -176,6 +176,9 @@ dashboard:  ## Surfaces, arbitrage maps and mispricing flags of the fitted panel
 
 mlflow:  ## Launch the local MLflow UI
 	uv run mlflow ui --backend-store-uri sqlite:///mlflow.db
+
+figures:  ## Figures, tables and quoted numbers of the report, from the saved results
+	$(PY) scripts/make_figures.py
 
 report:  ## Compile the LaTeX report
 	cd report && tectonic main.tex

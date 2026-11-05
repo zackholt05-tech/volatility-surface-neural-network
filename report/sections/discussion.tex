@@ -1,0 +1,57 @@
+\section{Limitations}
+\label{sec:limitations}
+
+\begin{itemize}
+  \item \textbf{Test windows were reused.} SPX 2023 was run four times, Heston 2022 three times, and
+  the fresh Heston panel and SPX 2016--2017 twice each (\cref{tab:windows}). Each later run was frozen
+  on the validation years first, and the last SPX run was preceded by a written prediction
+  (\texttt{results/phase7-warm-validation/notes\_before\_test.md}, commit \texttt{30c766c}), but a
+  finding on a test window chose which question the next run asked. Any further change to the
+  detector has to be chosen on the validation years. SPX 2016--2017 is the only window on which the
+  surface comparison was run once, and it reproduces the 2022 and 2023 rankings.
+  \item \textbf{The validation backtest is biased upward.} Its row is the best of 12 cells (margin
+  and holding period) it was selected from.
+  \item \textbf{End-of-day data make fills optimistic.} Every trade assumes a fill at the closing
+  bid or ask, with no market impact. Even the same-day bound assumes a fill at the closing quotes
+  that produced the signal. Intraday quotes would be needed to test whether any of the same-day edge
+  is reachable.
+  \item \textbf{The surface comparisons were not refitted.} \Cref{sec:surfaces} fits \mixfour{} on its
+  own sampled days from the default start, before the local minima of \cref{sec:refits} were found.
+  Minima there can only overstate the mixture's errors, so its lead in fit is, if anything,
+  understated.
+  \item \textbf{Sufficient conditions cost extrapolation.} The eSSVI conditions are sufficient
+  rather than necessary, and they bind at the fitted knots on SPX. Arbitrage-free wings closer to the
+  penalized network's would need a richer feasible family.
+  \item \textbf{The cross-day model is only as good as its training regimes.} On SPX the market
+  moved outside them in 2022, and quarterly refits close only part of the gap. On the synthetic
+  panels the latent carries the forecastable state, but a linear model fitted to one year cannot
+  estimate its dynamics; nonlinear dynamics models were not tried.
+  \item \textbf{The synthetic panels come from one smooth model.} The detection results depend on
+  the injected mispricings' form and on a stationary regime, and the per-day minima that broke the
+  SPX fits do not occur there. They show what the detectors can find, not what SPX contains.
+  \item \textbf{Platforms.} The validation panels were fitted on macOS (arm64) and the last test
+  panels on Linux (x86-64) with the same Python and locked dependencies. Six SPX 2022 days fitted
+  both ways agree to rounding; the conditional detectors' per-day refinement differs by at most
+  0.034\vp{} a quote, which changes 4 of 7{,}480 flags on Heston 2022.
+\end{itemize}
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+A price-space mixture of four eSSVI surfaces, arbitrage-free for every parameter vector, is the best
+per-day model of the SPX surface in every window we tested: it fits closest, it has no calendar or
+butterfly violations, and it degrades slowly when strikes or maturities are missing. Penalized
+networks extrapolate the wings better but keep some violations. A cross-day encoder--decoder that
+decodes every latent to an arbitrage-free surface wins every task on stationary synthetic data,
+including mispricing detection, but on SPX it is limited by regime change, and no model forecasts
+the surface better than a random walk. Used as a reference price, the best per-day surface does not
+reveal tradable SPX mispricings: once its fitting failures are removed, flagged quotes do not return
+to it faster than other quotes, and a delta-hedged strategy on the flags earns what matched placebos
+earn. The flags that looked like a signal on the first test run were largely the surface's own
+errors.
+
+\paragraph{Reproducibility.} The code, configurations and every Makefile target behind the tables
+are in the project repository; \texttt{make figures} regenerates every figure and table of this
+report from the saved results, and \texttt{make report} compiles it. The option data are licensed
+from OptionsDX and are not redistributed; the synthetic panels are regenerated with
+\texttt{make synthetic}.

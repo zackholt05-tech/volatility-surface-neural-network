@@ -1,0 +1,25 @@
+\begin{tabular}{lrrrrrrr}
+\toprule
+execution & trades & gross & costs & net & Sharpe & placebo & excess ($p$) \\
+\midrule
+\multicolumn{8}{l}{\emph{SPX 2023 test, refits}} \\
+next day & 1{,}482 & $+$\$476k & \$184k & $+$\$292k & $0.99$ & $+$\$233k & $+$\$59k ($0.31$) \\
+same day (bound) & 1{,}586 & $+$\$545k & \$176k & $+$\$368k & $1.63$ & $+$\$48k & $+$\$320k ($0.02$) \\
+\midrule
+\multicolumn{8}{l}{\emph{SPX 2023 test, cached fits}} \\
+next day & 2{,}595 & $+$\$162k & \$354k & $-$\$192k & $-0.66$ & $-$\$292k & $+$\$100k ($0.09$) \\
+same day (bound) & 2{,}883 & $+$\$421k & \$351k & $+$\$70k & $0.35$ & $-$\$353k & $+$\$423k ($0.002$) \\
+\midrule
+\multicolumn{8}{l}{\emph{SPX 2022 validation, refits}} \\
+next day & 3{,}420 & $+$\$948k & \$771k & $+$\$178k & $0.14$ & $-$\$454k & $+$\$632k ($0.02$) \\
+\midrule
+\multicolumn{8}{l}{\emph{SPX 2016--2017 replication, refits}} \\
+next day & 3 & $+$\$2 & \$2.2k & $-$\$2.2k & $-1.03$ & $-$\$1.4k & $-$\$781 ($0.45$) \\
+same day (bound) & 4 & $-$\$2.7k & \$1.9k & $-$\$4.5k & $-1.06$ & $-$\$3.8k & $-$\$741 ($0.51$) \\
+\midrule
+\multicolumn{8}{l}{\emph{Heston 2022 test, conditional (one year)}} \\
+next day & 3{,}091 & $+$\$998k & \$1.58m & $-$\$584k & $-5.39$ & $-$\$1.52m & $+$\$940k ($<0.001$) \\
+same day (bound) & 3{,}329 & $+$\$2.12m & \$1.74m & $+$\$383k & $3.09$ & $-$\$1.69m & $+$\$2.07m ($<0.001$) \\
+true labels, same day & 2{,}786 & $+$\$1.75m & \$1.54m & $+$\$206k & $1.92$ & $-$\$1.55m & $+$\$1.75m ($<0.001$) \\
+\bottomrule
+\end{tabular}

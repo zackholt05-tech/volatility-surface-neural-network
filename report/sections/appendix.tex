@@ -1,0 +1,179 @@
+\section{Static arbitrage in total variance}
+\label{app:arbitrage}
+
+Fix a maturity $T$ with forward $F$ and discount factor $D$, and write the call price as
+$C(K)=DF\,c(k)$ with $k=\log(K/F)$ and $c(k)=c_{\text{B}}\bigl(k,w(k)\bigr)$, where
+\[
+  c_{\text{B}}(k,w)=N(d_1)-e^{k}N(d_2),\qquad d_{1,2}=-\frac{k}{\sqrt w}\pm\frac{\sqrt w}{2}.
+\]
+Black's partial derivatives are $\partial_k c_{\text{B}}=-e^kN(d_2)$,
+$\partial_w c_{\text{B}}=e^k\phi(d_2)/(2\sqrt w)>0$ and
+$\partial_{kk}c_{\text{B}}-\partial_k c_{\text{B}}=e^k\phi(d_2)/\sqrt w=2\,\partial_w c_{\text{B}}$, using
+$\phi(d_1)=e^k\phi(d_2)$.
+
+\paragraph{Calendar.} With deterministic rates and proportional dividends, a calendar spread at a
+fixed forward-moneyness is free of arbitrage if and only if $c(k,T)$ is nondecreasing in $T$ at fixed
+$k$~\citep{carr2005,gatheral2014}. Since $\partial_w c_{\text{B}}>0$, this holds if and only if
+$\partial_T w(k,T)\ge 0$.
+
+\paragraph{Butterfly.} The risk-neutral density of the underlying at $T$ is
+$q(K)=D^{-1}\partial^2_K C$~\citep{breeden1978}. Since $\partial_K=K^{-1}\partial_k$,
+$\partial^2_K C=DF K^{-2}(c''-c')$, with primes the total derivatives in $k$. Expanding $c'$ and $c''$
+through $w(k)$,
+\[
+  c''-c'=(\partial_{kk}-\partial_k)c_{\text{B}}+(2\partial_{kw}-\partial_w)c_{\text{B}}\,w'
+  +\partial_{ww}c_{\text{B}}\,w'^2+\partial_w c_{\text{B}}\,w''.
+\]
+Differentiating $\partial_w c_{\text{B}}$ gives $\partial_{kw}c_{\text{B}}=\partial_w c_{\text{B}}\,(1+d_2/\sqrt w)$ and
+$\partial_{ww}c_{\text{B}}=\partial_w c_{\text{B}}\,\bigl(k^2/(2w^2)-1/(2w)-1/8\bigr)$. Substituting
+$d_2/\sqrt w=-k/w-1/2$ and collecting terms,
+\[
+  c''-c'=2\,\partial_w c_{\text{B}}\Bigl[1-\frac{kw'}{w}+\Bigl(\frac{k^2}{4w^2}-\frac{1}{4w}-\frac1{16}\Bigr)w'^2+\frac{w''}{2}\Bigr]
+  =2\,\partial_w c_{\text{B}}\;g(k),
+\]
+with $g$ as in \cref{eq:conditions}. Hence $q(K)=\phi\bigl(d_2(k)\bigr)\,g(k)/\bigl(K\sqrt{w(k)}\bigr)$,
+which is nonnegative exactly where $g$ is~\citep[Lemma 2.2]{gatheral2014}.
+
+\paragraph{Wings.} For any arbitrage-free smile, $\limsup_{|k|\to\infty}w(k)/|k|\le2$~\citep{lee2004}.
+The penalized network enforces it as a bound on the slope of $w$ at the outermost collocation
+strikes; eSSVI satisfies it through $\max(u_+,u_-)<4$.
+
+\paragraph{Grids.} Violation shares are evaluated on 40 maturities and 101 strikes per maturity (801
+for the calendar check) spanning the quoted domain, and on the same grid widened by 50\% of the
+quoted width on each side. A calendar violation counts when $w$ falls between consecutive grid
+maturities by more than a numerical tolerance; a butterfly violation when $g<-10^{-5}$.
+
+\section{eSSVI parametrization and price mixtures}
+\label{app:essvi}
+
+\paragraph{Feasible knots.} At knot maturities $T_1<\dots<T_n$, unconstrained rates
+$(a_i,b_i^+,b_i^-)$ map to knots as follows, with $\operatorname{sp}$ the softplus,
+$\Delta_i=T_i-T_{i-1}$ and $\delta_i=\log T_i-\log T_{i-1}$:
+\[
+  u^\pm_i=4\Bigl(1-\exp\Bigl(-\sum_{l\le i}\operatorname{sp}(b^\pm_l)\,\delta_l\Bigr)\Bigr),\qquad
+  \theta_i=\max\Bigl(\theta_{i-1}\frac{\psi_i}{\psi_{i-1}},\;\frac{\psi_i\max(u^+_i,u^-_i)}{4}\Bigr)+\operatorname{sp}(a_i)\,\Delta_i,
+\]
+with $\psi_i=(u^+_i+u^-_i)/2$. The wings are nondecreasing and below 4. Because $\psi$ is
+nondecreasing, $\theta_i>\theta_{i-1}$; the first term of the maximum keeps $\psi/\theta$
+nonincreasing and the second is the butterfly bound $\psi\max(u_+,u_-)\le4\theta$. Every condition
+of \cref{sec:models} therefore holds for every rate vector, and every feasible knot sequence with
+strict increases has a preimage.
+
+\begin{proposition}
+\label{prop:mixture}
+Let $c_1,\dots,c_M$ be normalized call price surfaces on a common set of expiries, each free of static
+arbitrage, and let $\pi_j\ge0$ with $\sum_j\pi_j=1$ be constant in $k$ and $T$. Then
+$c=\sum_j\pi_jc_j$ is free of static arbitrage, and its Black implied total variance $w(k,T)$ exists,
+is unique, lies between $\min_j w_j$ and $\max_j w_j$, and satisfies \cref{eq:conditions}.
+\end{proposition}
+
+\begin{proof}
+For each $T$, every $c_j$ is convex and nonincreasing in the strike and lies between
+$(1-e^k)^+$ and 1; for each $k$, it is nondecreasing in $T$. Each of these properties is preserved
+by a convex combination with weights that do not depend on $k$ or $T$, so $c$ has them too. Since
+$w\mapsto c_{\text{B}}(k,w)$ is a strictly increasing bijection from $(0,\infty)$ onto
+$\bigl((1-e^k)^+,1\bigr)$, the implied variance exists and is unique, and because $c$ lies between
+$\min_j c_j$ and $\max_j c_j$ it lies between the components' variances. Monotonicity of $c$ in $T$
+gives $\partial_Tw\ge0$ (\cref{app:arbitrage}). The density of $c$ is $\sum_j\pi_jq_j\ge0$, so
+$g\ge0$.
+\end{proof}
+
+If the weights varied with $T$, a component with low variance could gain weight at a longer maturity
+and the mixture price could fall, which is why \mixfour{} uses one set of weights per day.
+
+\section{Forwards and discount factors from put--call parity}
+\label{app:forwards}
+
+For each expiry, take the 20 strikes nearest the forward (smallest $|C-P|$) at which both the call
+and the put are quoted two-sided. Put--call parity, $C-P=DF-DK$, makes the mid price difference
+linear in $K$ with slope $-D$ and intercept $DF$. The slope is weakly identified at short maturities,
+where $D\approx1-rT$, so estimation runs in three stages per date: (i) a weighted regression per
+expiry with $T\ge30$ days gives $r=-\log D/T$; (ii) a robust kernel smoother in $\log T$ turns these
+into a rate curve, flat below 30 days; (iii) with $D=e^{-r(T)T}$ for every expiry, $F$ is the
+weighted median of $K+(C-P)/D$ over the pairs. An expiry is valid when the relative median absolute
+deviation of those per-strike forwards is below 0.002.
+
+\section{Robust refits}
+\label{app:robust}
+
+The least-squares objective of a surface is $\frac1n\sum_i u_i^2$ with
+$u_i=(\sigma^{\text{model}}_i-\sigma^{\text{mkt}}_i)/s_i$, where $s_i$ is the IV half-spread with a floor
+of 0.1\vp. One step of iteratively reweighted least squares for the Cauchy loss
+$\rho(u)=\tfrac{c^2}{2}\log\bigl(1+u^2/c^2\bigr)$ weights each quote by
+$\rho'(u_i)/u_i=1/\bigl(1+u_i^2/c^2\bigr)$, the residual from the previous pass. This is the squared
+loss with each half-spread replaced by $s_i\sqrt{1+u_i^2/c^2}$, so every refit reuses the
+least-squares solver. The pooled variant replaces $|u_i|$ in the weight by
+$\max\bigl(|u_i|,|\bar u_i|\bigr)$, where $\bar u_i$ is the mean residual of quote $i$ and up to two
+strikes on either side in its expiry. Quotes that are legs of model-free arbitrage are scored but
+excluded from every fit.
+
+\section{Reversion tests}
+\label{app:reversion}
+
+For origin day $t$ and horizon $h$ (in screened trading days), let $r_{i,t}$ be the residual of
+contract $i$ in price half-spreads and keep the contracts quoted on both $t$ and $t+h$. For flagged and
+unflagged contracts separately, the slope $b_t$ of the cross-sectional regression
+$r_{i,t+h}-r_{i,t}=a_t+b_t r_{i,t}+e_{i,t}$ is estimated on each day with at least five flags. The
+reported slopes are the means of $b_t$, and the test of a difference uses the daily series
+$b^{\text{flag}}_t-b^{\text{unflag}}_t$ with Newey--West standard errors~\citep{newey1987}, in the
+manner of \citet{fama1973}; pooled regressions over thousands of quotes a day would overstate the
+significance.
+
+\paragraph{Decomposition.} With $x_{i,t}=(\sigma^{\text{mkt}}_{i,t}-\sigma^{\text{model}}_{i,t})/s_{i,t}$,
+the change $x_{i,t+h}-x_{i,t}$ is not exactly the change of the residual, because $s$ changes between
+days. Measured in the origin day's half-spread,
+\[
+  \frac{(\sigma^{\text{mkt}}_{i,t+h}-\sigma^{\text{model}}_{i,t+h})-(\sigma^{\text{mkt}}_{i,t}-\sigma^{\text{model}}_{i,t})}{s_{i,t}}
+  =\underbrace{\frac{\sigma^{\text{mkt}}_{i,t+h}-\sigma^{\text{mkt}}_{i,t}}{s_{i,t}}}_{\text{market}}
+  -\underbrace{\frac{\sigma^{\text{model}}_{i,t+h}-\sigma^{\text{model}}_{i,t}}{s_{i,t}}}_{\text{model}},
+\]
+and since an OLS slope is linear in the dependent variable, the slope of the left side on $x_{i,t}$ is
+the market slope minus the model slope, day by day and on average. A negative market slope means
+prices move towards the surface. The total in this basis differs from the price-residual slope; on
+SPX 2022 the robust detector's one-day flagged slope is $-0.46$ in prices, $-0.33$ in IV and $-0.21$
+in IV with the origin day's spread, so each part is compared with its own total.
+
+\paragraph{Forecast tests.} The Diebold--Mariano statistic~\citep{diebold1995} is the mean of the
+daily loss differential (baseline minus model) over its Newey--West standard error, with Bartlett
+bandwidth $\max\bigl(h,\,4(n/100)^{2/9}\bigr)$ because overlapping $h$-day errors are autocorrelated
+up to lag $h-1$, and a two-sided $p$-value from $t_{n-1}$.
+
+\section{Backtest accounting}
+\label{app:backtest}
+
+A signal on day $s$ (sell if rich, buy if cheap) is executed at the close of day $s+\ell$, with
+$\ell=1$ (next day) or $\ell=0$ (same day), in $n=V/(100\cdot0.01\,\nu)$ contracts, where $V=\$1{,}000$ is the
+target dollar vega per vol point, 100 the contract multiplier and $\nu$ the Black vega per unit of
+volatility at the signal. The
+entry and the exit each cost $100\,n$ half-spreads plus \$1 per contract. Between closes $t$ and
+$t+1$ a position of signed size $q=\pm100n$ earns
+\[
+  q\bigl[(m_{t+1}-m_t)-\Delta_t\,(F_{t+1}-F_t)\bigr],
+\]
+with $m$ the mid price, $\Delta_t$ the Black forward delta at the day's market IV and $F$ the expiry's
+parity forward; the hedge is held in the forward. The position is closed $\ell$ days after the first
+close at which its residual is below half a spread, or after five days. The panel holds
+out-of-the-money options only, so an option that moves into the money is marked through parity from
+the out-of-the-money option at its strike. A contract that drops out of the cleaned panel keeps its
+hedge for up to three days and is marked when it is quoted again; beyond that it is closed at its
+last quote. Entries are restricted to contracts that stay inside the panel until their latest
+possible exit, and a contract is traded at most once at a time.
+
+Each trade has 20 placebos, each a random unflagged and tradable contract from the signal day with
+the same type, direction and maturity--moneyness bucket, entered and exited on the same days. The
+strategy is compared with the mean placebo by a Newey--West test on the daily difference of net PnL.
+Sharpe ratios are the mean of daily net PnL over its standard deviation, times $\sqrt{252}$.
+
+\section{Forecasts}
+\label{app:forecast}
+
+\begin{table}[h]
+  \centering\small
+  \caption{Forecast RMSE (vp) on every quote of the target day, $h$ trading days ahead, on the
+  validation years. RW is a random walk on the latent or on the origin day's \mixfour{} fit. The $p$-value is
+  a Diebold--Mariano test~\citep{diebold1995}, with Newey--West variance~\citep{newey1987}, of the
+  VAR against the \mixfour{} random walk; the last column scores the target day's own decoded surface, a floor
+  for any forecast through the decoder.}
+  \label{tab:forecast}
+  \input{tables/forecast}
+\end{table}

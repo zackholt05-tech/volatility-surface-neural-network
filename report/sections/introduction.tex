@@ -1,0 +1,61 @@
+\section{Introduction}
+\label{sec:intro}
+
+An implied volatility surface summarizes a day's option chain as a function $\sigma(k,T)$ of
+log-moneyness and maturity. A useful surface has to interpolate between quoted strikes and
+maturities, extrapolate into the wings, and be free of static arbitrage, since a surface that
+admits calendar or butterfly arbitrage implies negative probabilities or prices that decrease with
+maturity. A surface that is arbitrage-free and fits the quotes closely also defines a reference
+price for every quote, so quotes far from it are candidate mispricings.
+
+This report compares three ways of building such surfaces on SPX options and asks whether the
+candidates they flag are tradable. The three are per-day parametric surfaces that are
+arbitrage-free by theorem, per-day neural surfaces penalized towards the no-arbitrage region, and
+one cross-day neural model that encodes a day's quotes into a latent vector and decodes every
+latent to an arbitrage-free surface. All models are scored under one protocol on the same days,
+with settings chosen on a validation year and frozen before the test years were run.
+
+\paragraph{Findings.}
+\begin{itemize}
+  \item \textbf{A price-space mixture of eSSVI surfaces is the best per-day model.} Each component
+  is an eSSVI surface~\citep{hendriks2019} written in coordinates in which the known sufficient
+  no-arbitrage conditions become monotonicity and bound constraints, so every parameter vector is
+  feasible. Four such surfaces are mixed in price space with weights that do not depend on
+  maturity, which preserves the absence of arbitrage (\cref{prop:mixture}). On SPX 2022 the mixture
+  fits closest (\mixFitVal\vp) with no violations on any day; it stays closest on the 2023 test year
+  and on 2016--2017 (\cref{tab:models,tab:oos}).
+  \item \textbf{Soft penalties extrapolate better but leave violations.} A network correcting an SSVI
+  prior, with hinge penalties on a collocation grid in the spirit of~\citet{ackerer2020}, has the
+  lowest held-out wing error on SPX (\pnnWingVal{} against \mixWingVal\vp{} for the mixture) and
+  violates the calendar condition on \pnnCalVal{} of an extended grid.
+  \item \textbf{The cross-day model is best where the regime is stationary.} On synthetic Heston
+  panels it is closest to the true surface, most robust to missing strikes, and the best mispricing
+  detector (\cref{tab:heston,tab:detection}). On SPX its error grows as the market leaves the
+  regimes it was trained on (\cref{fig:regime}); quarterly refits close about half of that gap but
+  still fit each day about five times less closely than the per-day mixture.
+  \item \textbf{SPX flags are not tradable once fitting failures are removed.} The default fit of
+  the mixture stops in poor local minima on some days, and a day fitted that way flags whole
+  expiries. With every day refitted from the previous day's surface, flagged quotes revert no
+  faster than unflagged ones at one day, their market prices move towards the model no more than
+  those of unflagged quotes, and a delta-hedged strategy earns no more than matched placebos
+  (\cref{sec:mispricing}). No surface model forecasts the surface better than a random walk.
+\end{itemize}
+
+\paragraph{Test-set reuse.} The test windows were used more than once, each time with every
+setting frozen beforehand on the validation years (\cref{tab:windows}). The mispricing conclusion
+of \cref{sec:mispricing} rests on the fourth run on SPX 2023, which was made after the fitting
+failures were found and was preceded by a written prediction. We report each run, including those
+whose conclusions the later runs replaced.
+
+\paragraph{Related work.} Parametric arbitrage-free surfaces start from SVI and its surface form
+SSVI, with explicit sufficient conditions for the absence of static arbitrage~\citep{gatheral2014};
+eSSVI lets the correlation vary with maturity~\citep{hendriks2019}, with conditions for calibrating
+and interpolating slices~\citep{corbetta2019} and a global parametrization~\citep{mingone2022}.
+Nonparametric alternatives smooth prices under shape constraints~\citep{fengler2009}. Neural surfaces
+either penalize the conditions on a grid~\citep{ackerer2020} or learn pricing maps for
+calibration~\citep{horvath2021}. Our hard-constrained models follow the parametric line and use a
+network only to generate parameters; the cross-day model borrows the set encoders and
+context--target training of DeepSets~\citep{zaheer2017} and neural processes~\citep{garnelo2018}.
+Surface dynamics have long been described by a few factors~\citep{cont2002}. On the trading side,
+delta-hedged option positions earn the volatility risk premium~\citep{bakshi2003,carr2009}, which
+is why every strategy below is compared with placebos that carry the same exposure.

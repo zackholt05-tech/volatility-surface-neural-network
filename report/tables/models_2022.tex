@@ -1,0 +1,18 @@
+\begin{tabular}{lrrrrrrr}
+\toprule
+& \multicolumn{4}{c}{quotes (RMSE in vp)} & \multicolumn{2}{c}{violations} & \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-7}
+model & fit & in spread & strikes & wings & calendar & butterfly & s/day \\
+\midrule
+SSVI & $0.793$ & 22\% & $0.802$ & $3.80$ & 0 & 0 & $0.21$ \\
+SVI (per slice) & $0.204$ & 62\% & $0.218$ & $5.07$ & 21.89\% & 7.91\% & $6.86$ \\
+smoothing spline & $0.134$ & 64\% & $0.143$ & $3.95$ & 21.61\% & 0.14\% & $<0.01$ \\
+MLP, no penalty & $0.341$ & 45\% & $0.344$ & $1.98$ & 20.04\% & 2.50\% & $18$ \\
+penalized network (\texttt{pnn}) & $0.125$ & 75\% & $0.124$ & $\mathbf{0.86}$ & 0.38\% & 0.12\% & $109$ \\
+eSSVI & $0.419$ & 40\% & $0.421$ & $3.24$ & 0 & 0 & $3.02$ \\
+eSSVI mixture (\texttt{mix4}) & $\mathbf{0.121}$ & \textbf{81\%} & $\mathbf{0.123}$ & $1.31$ & 0 & 0 & $33$ \\
+network-generated mixture & $0.406$ & 49\% & $0.407$ & $1.79$ & 0 & 0 & $62$ \\
+conditional, amortized & $0.805$ & 16\% & $0.801$ & $1.86$ & 0 & 0 & $0.06$ \\
+conditional, refined & $0.610$ & 21\% & $0.615$ & $2.20$ & 0 & 0 & $3.55$ \\
+\bottomrule
+\end{tabular}

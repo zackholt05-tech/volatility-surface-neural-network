@@ -1,0 +1,73 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\usepackage[capitalise,noabbrev]{cleveref}
+
+\graphicspath{{figures/}}
+\setlength{\parskip}{3pt}
+\setlength{\tabcolsep}{4.5pt}
+\setlength{\textfloatsep}{12pt plus 2pt minus 4pt}
+\setlength{\floatsep}{10pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{6pt}
+\newtheorem{proposition}{Proposition}
+\crefname{appsec}{Appendix}{Appendices}
+
+\input{tables/numbers}
+
+\newcommand{\vp}{\,vp}
+\newcommand{\mixfour}{\texttt{mix4}}
+\newcommand{\pnn}{\texttt{pnn}}
+\newcommand{\E}{\mathbb{E}}
+
+\title{Arbitrage-Free Implied Volatility Surfaces for SPX Options:\\
+Per-Day Mixtures, a Cross-Day Neural Model, and a Test for Mispricings}
+\author{Zack Holt}
+\date{November 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+We fit SPX implied volatility surfaces to end-of-day option chains (2010--2023, \spxDays{} trading
+days) with models that are free of static arbitrage by construction or through penalties, and test
+whether quotes far from the fitted surfaces are tradable mispricings. The best surface model,
+\mixfour, mixes four extended SSVI surfaces in forward-normalized price space and is arbitrage-free
+for every parameter vector. It fits the 2022 validation year to \mixFitVal\vp{} with no calendar or
+butterfly violations and stays the closest fit on the 2023 test year (\mixFitTest\vp) and on a
+2016--2017 replication window (\mixFitRep\vp); a penalized network extrapolates the wings better
+(\pnnWingVal{} against \mixWingVal\vp) but keeps some violations. A cross-day encoder--decoder that
+decodes every latent to an arbitrage-free surface wins on stationary synthetic Heston panels,
+including mispricing detection (precision \multiPrecFresh, recall \multiRecFresh), but on SPX it is
+limited by regime change. On SPX the default fit's objective was more than twice what the surface
+can reach on \refitTwoX{} of \refitDays{} test-year days. Once those days are refitted, quotes flagged
+outside the bid-ask revert no faster than unflagged ones the next day ($p=\revPOne$), and the
+\btNet{} net of a delta-hedged next-day strategy is matched by placebos on unflagged contracts
+(\btPlacebo; $p=\btP$ for the difference). Every setting was frozen on validation years before each
+test run, and we report how often each test window was used.
+\end{abstract}
+
+\input{sections/introduction}
+\input{sections/data}
+\input{sections/models}
+\input{sections/surfaces}
+\input{sections/mispricing}
+\input{sections/discussion}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\appendix
+\input{sections/appendix}
+
+\end{document}

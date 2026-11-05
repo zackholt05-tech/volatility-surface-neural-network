@@ -1,0 +1,13 @@
+\begin{tabular}{lrrrrr}
+\toprule
+& & \multicolumn{3}{c}{recall} & \\
+\cmidrule(lr){3-5}
+detector & precision & recall & isolated & segments & absorbed \\
+\midrule
+least-squares \texttt{mix4} & $0.902$ / $0.902$ & $0.39$ / $0.40$ & $0.53$ / $0.54$ & $0.21$ / $0.23$ & 56\% / 55\% \\
+robust \texttt{mix4} & $0.954$ / $0.950$ & $0.44$ / $0.45$ & $0.58$ / $0.59$ & $0.27$ / $0.29$ & 53\% / 52\% \\
+pooled robust \texttt{mix4} & $0.964$ / $0.964$ & $0.52$ / $0.54$ & $0.62$ / $0.64$ & $0.40$ / $0.43$ & 36\% / 34\% \\
+conditional, one year & $0.635$ / $0.581$ & $0.63$ / $0.65$ & $\mathbf{0.63}$ / $\mathbf{0.65}$ & $0.63$ / $0.65$ & 4\% / 4\% \\
+conditional, nine years & $\mathbf{0.997}$ / $\mathbf{0.996}$ & $\mathbf{0.63}$ / $\mathbf{0.65}$ & $0.63$ / $0.64$ & $\mathbf{0.62}$ / $\mathbf{0.66}$ & 4\% / 3\% \\
+\bottomrule
+\end{tabular}

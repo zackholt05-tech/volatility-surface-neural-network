@@ -688,6 +688,18 @@ platforms by at most 0.034 vp a quote (4 of 7,480 one-year-model flags on Heston
 preempted container, resumes where it stopped. A run killed during the date-ordered fits and again
 during the robust refits, then resumed, reproduces the uninterrupted run's tables exactly.
 
+## Report
+
+```bash
+make figures   # report/figures/*.pdf, report/tables/*.tex and the numbers the text quotes
+make report    # report/main.pdf (Tectonic)
+```
+
+The technical report (`report/main.tex`) covers the data, models, surface results and mispricing tests
+above, with derivations in its appendix. `scripts/make_figures.py` reads only the saved results under
+`results/` and `data/processed/spx/days/`, so it needs the targets above to have run; the generated
+figures and tables are committed, so the report compiles from a clean clone.
+
 ## Dashboard
 
 ```bash
@@ -731,4 +743,4 @@ are missing. The refits start from the cached fits, so those targets run first:
 - [x] Cross-day conditional surface model
 - [x] Mispricing detection, residual reversion tests, delta-hedged backtest
 - [x] Streamlit dashboard
-- [ ] Technical report
+- [x] Technical report
