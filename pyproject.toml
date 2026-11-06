@@ -3,6 +3,8 @@ name = "volsurf"
 version = "0.1.0"
 description = "Arbitrage-aware neural implied-volatility surfaces for SPX options, with mispricing detection."
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.11,<3.14"
 authors = [{ name = "Zackary Holt", email = "zackholt05@gmail.com" }]
 dependencies = [
@@ -26,7 +28,7 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]  # 1.27 reads an SPDX license expression (PEP 639)
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

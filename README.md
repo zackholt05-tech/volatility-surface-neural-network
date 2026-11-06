@@ -747,3 +747,11 @@ are missing. The refits start from the cached fits, so those targets run first:
 - [x] Mispricing detection, residual reversion tests, delta-hedged backtest
 - [x] Streamlit dashboard
 - [x] Technical report
+
+## License
+
+The code and the technical report are released under the [Apache License 2.0](LICENSE); keep the
+[NOTICE](NOTICE) file with any copy you redistribute. The OptionsDX option data is not included and
+is governed by OptionsDX's own terms ([Data](#data) explains how to download it). To cite this
+work, use GitHub's "Cite this repository" button or [CITATION.cff](CITATION.cff), which points to
+the report.

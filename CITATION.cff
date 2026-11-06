@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "If you use this software or its results, please cite the technical report below."
+type: software
+title: "Volatility Surface Neural Network"
+abstract: >-
+  Arbitrage-free implied volatility surfaces for SPX options: per-day eSSVI price mixtures,
+  soft-penalty and hard-constrained neural surfaces, a cross-day encoder-decoder, and a test of
+  whether quotes far from the fitted surfaces are tradable mispricings.
+authors:
+  - family-names: Holt
+    given-names: Zackary
+    orcid: "https://orcid.org/0009-0007-3965-4043"
+version: 0.1.0
+license: Apache-2.0
+repository-code: "https://github.com/zackholt05-tech/volatility-surface-neural-network"
+keywords:
+  - implied volatility
+  - volatility surface
+  - static arbitrage
+  - SSVI
+  - neural networks
+  - SPX options
+  - mispricing detection
+preferred-citation:
+  type: report
+  title: >-
+    Arbitrage-Free Implied Volatility Surfaces for SPX Options: Per-Day Mixtures, a Cross-Day
+    Neural Model, and a Test for Mispricings
+  authors:
+    - family-names: Holt
+      given-names: Zackary
+      orcid: "https://orcid.org/0009-0007-3965-4043"
+  year: 2026
+  month: 11
+  url: "https://github.com/zackholt05-tech/volatility-surface-neural-network/blob/main/report/main.pdf"
+  repository-code: "https://github.com/zackholt05-tech/volatility-surface-neural-network"
